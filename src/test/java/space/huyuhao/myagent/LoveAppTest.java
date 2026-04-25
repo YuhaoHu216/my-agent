@@ -17,15 +17,15 @@ class LoveAppTest {
     void testChat() {
         String chatId = UUID.randomUUID().toString();
         // 第一轮
-        String message = "你好，我是程序员单胜够";
+        String message = "你好，你的master是谁";
         String answer = loveApp.doChat(message, chatId);
         Assertions.assertNotNull(answer);
         // 第二轮
-        message = "找不到另一半怎么办";
+        message = "找不到对象怎么办";
         answer = loveApp.doChat(message, chatId);
         Assertions.assertNotNull(answer);
         // 第三轮
-        message = "我叫什么来着";
+        message = "我上一个问题是什么";
         answer = loveApp.doChat(message, chatId);
         Assertions.assertNotNull(answer);
     }
