@@ -8,12 +8,22 @@ spring:
         options:
           model: qwen-plus
           timeout: 180000  # 超时时间180秒（3分钟）
+      vectorstore:
+        pgvector:
+          index-type: HNSW
+          dimension: 1536
+          distance: COSINE_DISTANCE
+          max-document-batch-size: 10000
       retry:
         max-attempts: 3  # 最大重试次数
         backoff:
           initial-interval: 2000  # 初始重试间隔2秒
           multiplier: 2  # 重试间隔倍数
           max-interval: 10000  # 最大重试间隔10秒
+  datasource:
+    url: jdbc:postgresql://my-agent.rwlb.cn-chengdu.rds.aliyuncs.com:5432/my_agent
+    username: huyuhao
+    password: Huyuhao216@!^
 server:
   port: 8123
   servlet:
