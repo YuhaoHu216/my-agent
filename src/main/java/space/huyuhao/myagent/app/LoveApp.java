@@ -11,6 +11,7 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Component;
 import space.huyuhao.myagent.advisor.MyLoggerAdvisor;
 import space.huyuhao.myagent.advisor.ReReadingAdvisor;
+import space.huyuhao.myagent.chatmemory.FileBasedChatMemory;
 
 import java.util.List;
 
@@ -33,7 +34,8 @@ public class LoveApp {
 
     public LoveApp(ChatModel dashscopeChatModel) {
         // 初始化基于内存的对话记忆
-        ChatMemory chatMemory = new InMemoryChatMemory();
+        String fileDir = System.getProperty("user.id") + "/chat-memory";
+        ChatMemory chatMemory = new FileBasedChatMemory(fileDir);
         chatClient = ChatClient.builder(dashscopeChatModel)
                 .defaultSystem(SYSTEM_PROMPT)
                 .defaultAdvisors(
