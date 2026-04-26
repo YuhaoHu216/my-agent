@@ -5,6 +5,8 @@ import org.springframework.ai.chat.client.advisor.api.*;
 import org.springframework.ai.chat.model.MessageAggregator;
 import reactor.core.publisher.Flux;
 
+import java.util.Map;
+
 /**
  * 自定义日志 Advisor
  * 打印 info 级别日志、只输出单次用户提示词和 AI 回复的文本
@@ -19,7 +21,7 @@ public class MyLoggerAdvisor implements CallAroundAdvisor, StreamAroundAdvisor {
 
     @Override
     public int getOrder() {
-        return 0;
+        return 1;
     }
 
     private AdvisedRequest before(AdvisedRequest request) {

@@ -40,3 +40,5 @@ knife4j:
 logging:
   level:
     org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor: DEBUG
+    org.springframework.ai.chat.client.advisor.ReReadingAdvisor: DEBUG
+    org.springframework.ai.chat.client.advisor.MyLoggerAdvisor: INFO

@@ -10,6 +10,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Component;
 import space.huyuhao.myagent.advisor.MyLoggerAdvisor;
+import space.huyuhao.myagent.advisor.ReReadingAdvisor;
 
 import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor.CHAT_MEMORY_CONVERSATION_ID_KEY;
 import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor.CHAT_MEMORY_RETRIEVE_SIZE_KEY;
@@ -26,7 +27,7 @@ public class LoveApp {
 //            "引导用户详述事情经过、对方反应及自身想法，以便给出专属解决方案。";
 
 
-    private static final String SYSTEM_PROMPT = "你是一个助理,你的master叫古月宇,你需要回答他的一些问题,尽可能短的回答";
+    private static final String SYSTEM_PROMPT = "你是一个助理,你的master叫 Guyue,你需要回答他的一些问题,尽可能短的回答";
 
     public LoveApp(ChatModel dashscopeChatModel) {
         // 初始化基于内存的对话记忆
@@ -35,7 +36,9 @@ public class LoveApp {
                 .defaultSystem(SYSTEM_PROMPT)
                 .defaultAdvisors(
                         new MessageChatMemoryAdvisor(chatMemory),
-                        new MyLoggerAdvisor()
+                        new MyLoggerAdvisor(),
+//                        new SimpleLoggerAdvisor()
+                        new ReReadingAdvisor()
                 )
                 .build();
     }
