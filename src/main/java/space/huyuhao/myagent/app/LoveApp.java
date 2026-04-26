@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component;
 import space.huyuhao.myagent.advisor.MyLoggerAdvisor;
 import space.huyuhao.myagent.advisor.ReReadingAdvisor;
 
+import java.util.List;
+
 import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor.CHAT_MEMORY_CONVERSATION_ID_KEY;
 import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor.CHAT_MEMORY_RETRIEVE_SIZE_KEY;
 
@@ -36,9 +38,9 @@ public class LoveApp {
                 .defaultSystem(SYSTEM_PROMPT)
                 .defaultAdvisors(
                         new MessageChatMemoryAdvisor(chatMemory),
-                        new MyLoggerAdvisor(),
+                        new MyLoggerAdvisor()
 //                        new SimpleLoggerAdvisor()
-                        new ReReadingAdvisor()
+//                        new ReReadingAdvisor()
                 )
                 .build();
     }
@@ -55,5 +57,23 @@ public class LoveApp {
         log.info("content: {}", content);
         return content;
     }
+
+    public record LoveReport(String title, List<String> suggestions) {
+    }
+
+    public LoveReport doChatWithReport(String message, String chatId) {
+        LoveReport loveReport = chatClient
+                .prompt()
+                .system(SYSTEM_PROMPT + "每次对话后都要生成报告，标题为{用户名}的报告，内容为建议列表")
+                .user(message)
+                .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
+                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
+                .call()
+                .entity(LoveReport.class);
+        log.info("loveReport: {}", loveReport);
+        return loveReport;
+    }
+
+
 
 }
