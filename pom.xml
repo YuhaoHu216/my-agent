@@ -98,6 +98,20 @@
             <artifactId>kryo</artifactId>
             <version>5.6.2</version>
         </dependency>
+<!--            用于读取文档(md)-->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-markdown-document-reader</artifactId>
+            <version>1.0.0-M6</version>
+        </dependency>
+<!--                向量数据库-->
+<!--        <dependency>-->
+<!--            <groupId>org.springframework.ai</groupId>-->
+<!--            <artifactId>spring-ai-advisors-vector-store</artifactId>-->
+<!--        </dependency>-->
+
+
+
 
 
 

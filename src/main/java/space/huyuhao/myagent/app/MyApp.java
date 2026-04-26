@@ -1,16 +1,17 @@
 package space.huyuhao.myagent.app;
 
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
-import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
+import org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.InMemoryChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Component;
 import space.huyuhao.myagent.advisor.MyLoggerAdvisor;
-import space.huyuhao.myagent.advisor.ReReadingAdvisor;
 import space.huyuhao.myagent.chatmemory.FileBasedChatMemory;
 
 import java.util.List;
@@ -20,7 +21,7 @@ import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvis
 
 @Component
 @Slf4j
-public class LoveApp {
+public class MyApp {
 
     private final ChatClient chatClient;
 
@@ -30,12 +31,14 @@ public class LoveApp {
 //            "引导用户详述事情经过、对方反应及自身想法，以便给出专属解决方案。";
 
 
-    private static final String SYSTEM_PROMPT = "你是一个助理,你的master叫 Guyue,你需要回答他的一些问题,尽可能短的回答";
+    private static final String SYSTEM_PROMPT = "你是一个助理,你的master叫 Guyue,你需要回答他的一些问题,他不喜欢长篇大论+" +
+                                                "回答的时候可以加一些颜文字,比如 o((>ω< ))o,不要用emoji";
 
-    public LoveApp(ChatModel dashscopeChatModel) {
+    public MyApp(ChatModel dashscopeChatModel) {
         // 初始化基于内存的对话记忆
         String fileDir = System.getProperty("user.id") + "/chat-memory";
-        ChatMemory chatMemory = new FileBasedChatMemory(fileDir);
+//        ChatMemory chatMemory = new FileBasedChatMemory(fileDir);
+        ChatMemory chatMemory = new InMemoryChatMemory();
         chatClient = ChatClient.builder(dashscopeChatModel)
                 .defaultSystem(SYSTEM_PROMPT)
                 .defaultAdvisors(
@@ -53,6 +56,7 @@ public class LoveApp {
                 .user(message)
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
                         .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
+                .advisors(new QuestionAnswerAdvisor(myAppVectorStore))
                 .call()
                 .chatResponse();
         String content = response.getResult().getOutput().getText();
@@ -60,22 +64,23 @@ public class LoveApp {
         return content;
     }
 
-    public record LoveReport(String title, List<String> suggestions) {
+    public record MyReport(String title, List<String> results) {
     }
 
-    public LoveReport doChatWithReport(String message, String chatId) {
-        LoveReport loveReport = chatClient
+    @Resource
+    private VectorStore myAppVectorStore;
+    public MyReport doChatWithReport(String message, String chatId) {
+        MyReport myReport = chatClient
                 .prompt()
-                .system(SYSTEM_PROMPT + "每次对话后都要生成报告，标题为{用户名}的报告，内容为建议列表")
+                .system(SYSTEM_PROMPT + "每次对话后都要生成报告，标题为{用户名}的报告，内容为结果列表")
                 .user(message)
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
                         .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
+                .advisors(new QuestionAnswerAdvisor(myAppVectorStore))
                 .call()
-                .entity(LoveReport.class);
-        log.info("loveReport: {}", loveReport);
-        return loveReport;
+                .entity(MyReport.class);
+        log.info("myReport: {}", myReport);
+        return myReport;
     }
-
-
 
 }
