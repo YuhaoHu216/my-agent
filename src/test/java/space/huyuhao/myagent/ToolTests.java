@@ -8,6 +8,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import space.huyuhao.myagent.app.MyApp;
 import space.huyuhao.myagent.tool.FileOperationTool;
 
+import java.io.InputStream;
+
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @SpringBootTest
@@ -49,7 +51,7 @@ public class ToolTests {
 //        testMessage("执行 Python3 脚本来生成数据分析报告");
 
         // 测试文件操作：保存用户档案
-        testMessage("把对话过程保存为一个文档");
+        testMessage("把对话过程(指的是你和我的对话)保存为一个文档,文档最后写入当前时间");
 
         // 测试 PDF 生成
 //        testMessage("生成一份‘七夕约会计划’PDF，包含餐厅预订、活动流程和礼物清单");
@@ -60,5 +62,15 @@ public class ToolTests {
         String answer = myApp.doChatWithTools(message, chatId);
         Assertions.assertNotNull(answer);
     }
+
+    @Test
+    void doChatWithMcp() {
+        String chatId = UUID.randomUUID().toString();
+        // 测试地图mcp
+        String message = "帮我规划下从雅安到成都的路线,使用地图工具";
+        String answer =  myApp.doChatWithMcp(message, chatId);
+        Assertions.assertNotNull(answer);
+    }
+
 
 }
