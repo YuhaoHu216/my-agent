@@ -57,7 +57,7 @@ public class MyApp {
                 .user(message)
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
                         .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
-                .advisors(new QuestionAnswerAdvisor(myAppVectorStore))
+                // .advisors(new QuestionAnswerAdvisor(myAppVectorStore)) // 暂时注释掉 RAG 功能
                 .call()
                 .chatResponse();
         String content = response.getResult().getOutput().getText();
@@ -68,8 +68,8 @@ public class MyApp {
     public record MyReport(String title, List<String> results) {
     }
 
-    @Resource
-    private VectorStore myAppVectorStore;
+    // @Resource
+    // private VectorStore myAppVectorStore;
     public MyReport doChatWithReport(String message, String chatId) {
         MyReport myReport = chatClient
                 .prompt()
@@ -77,7 +77,7 @@ public class MyApp {
                 .user(message)
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
                         .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
-                .advisors(new QuestionAnswerAdvisor(myAppVectorStore))
+                // .advisors(new QuestionAnswerAdvisor(myAppVectorStore)) // 暂时注释掉 RAG 功能
                 .call()
                 .entity(MyReport.class);
         log.info("myReport: {}", myReport);

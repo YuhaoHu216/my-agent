@@ -67,7 +67,7 @@ public class ToolTests {
     void doChatWithMcp() {
         String chatId = UUID.randomUUID().toString();
         // 测试地图mcp
-        String message = "帮我规划下从雅安到成都的路线,使用地图工具";
+        String message = "四川农业大学(雅安校区)周围有什么好玩的地方";
         String answer =  myApp.doChatWithMcp(message, chatId);
         Assertions.assertNotNull(answer);
     }
