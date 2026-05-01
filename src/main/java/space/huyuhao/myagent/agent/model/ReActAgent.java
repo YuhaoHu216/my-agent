@@ -1,4 +1,4 @@
-package space.huyuhao.myagent.agent;
+package space.huyuhao.myagent.agent.model;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;

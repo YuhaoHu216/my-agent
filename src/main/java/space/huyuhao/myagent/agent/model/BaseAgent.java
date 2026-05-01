@@ -1,11 +1,10 @@
-package space.huyuhao.myagent.agent;
+package space.huyuhao.myagent.agent.model;
 
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
-import space.huyuhao.myagent.agent.model.AgentState;
 
 
 import java.util.ArrayList;
