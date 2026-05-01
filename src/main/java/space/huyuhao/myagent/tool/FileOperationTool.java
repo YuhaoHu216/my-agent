@@ -5,6 +5,9 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import space.huyuhao.myagent.constant.FileConstant;
 
+/**
+ * 文件读取写入工具
+ */
 public class FileOperationTool {
 
     private final String FILE_DIR = FileConstant.FILE_SAVE_DIR + "/file";
