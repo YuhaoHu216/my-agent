@@ -36,8 +36,8 @@ public class MyLoggerAdvisor implements CallAroundAdvisor, StreamAroundAdvisor {
         }
         
         // 工具的调用
-        List<FunctionCallback> functionCallbacks = request.functionCallbacks();
-        log.info(">>> Function Callbacks: {}", functionCallbacks);
+//        List<FunctionCallback> functionCallbacks = request.functionCallbacks();
+//        log.info(">>> Function Callbacks: {}", functionCallbacks);
 
         return request;
     }
