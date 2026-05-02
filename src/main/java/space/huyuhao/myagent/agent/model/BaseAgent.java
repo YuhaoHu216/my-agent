@@ -125,7 +125,7 @@ public abstract class BaseAgent {
 
                         // 单步执行
                         String stepResult = step();
-                        String result = "Step " + stepNumber + ": " + stepResult;
+                        String result = "Step " + stepNumber + ": " + stepResult + "\n";
 
                         // 发送每一步的结果
                         emitter.send(result);

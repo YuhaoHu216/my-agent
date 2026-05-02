@@ -27,9 +27,10 @@ spring:
           multiplier: 2  # 重试间隔倍数
           max-interval: 10000  # 最大重试间隔10秒
   datasource:
-    url: jdbc:postgresql://my-agent.rwlb.cn-chengdu.rds.aliyuncs.com:5432/my_agent
-    username: huyuhao
-    password: Huyuhao216@!^
+    url: jdbc:mysql://localhost:3306/my_agent?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: 111111
+    driver-class-name: com.mysql.cj.jdbc.Driver
 server:
   port: 8123
   servlet:

@@ -43,7 +43,7 @@ public abstract class ReActAgent extends BaseAgent {
                 return "思考完成 - 无需行动";
             }
             act();  // 这里是返回工具调用的过程
-            return thinkResult;
+            return thinkResult;  // 返回思考过程
         } catch (Exception e) {
             // 记录异常日志
             e.printStackTrace();
