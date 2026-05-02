@@ -57,7 +57,7 @@ public class ToolCallAgent extends ReActAgent {
      * @return 是否需要执行行动
      */
     @Override
-    public boolean think() {
+    public String think() {
         if (getNextStepPrompt() != null && !getNextStepPrompt().isEmpty()) {
             UserMessage userMessage = new UserMessage(getNextStepPrompt());
             getMessageList().add(userMessage);
@@ -89,16 +89,16 @@ public class ToolCallAgent extends ReActAgent {
             if (toolCallList.isEmpty()) {
                 // 只有不调用工具时，才记录助手消息
                 getMessageList().add(assistantMessage);
-                return false;
+                return "";
             } else {
                 // 需要调用工具时，无需记录助手消息，因为调用工具时会自动记录
-                return true;
+                return result;
             }
         } catch (Exception e) {
             log.error(getName() + "的思考过程遇到了问题: " + e.getMessage());
             getMessageList().add(
                     new AssistantMessage("处理时遇到错误: " + e.getMessage()));
-            return false;
+            return "";
         }
     }
 
