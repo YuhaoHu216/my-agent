@@ -6,6 +6,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import space.huyuhao.myagent.dto.ResponseResult;
+import space.huyuhao.myagent.dto.UserInfoDto;
 import space.huyuhao.myagent.dto.UserLoginDto;
 import space.huyuhao.myagent.dto.UserRegisterDto;
 import space.huyuhao.myagent.entity.User;
@@ -71,6 +72,22 @@ public class UserServiceImpl implements UserService {
         String token = jwtUtil.generateToken(user.getUsername());
 
         return ResponseResult.success("登录成功", token);
+    }
+
+    @Override
+    public ResponseResult<UserInfoDto> getCurrentUser(String username) {
+        User user = findByUsername(username);
+        if (user == null) {
+            return ResponseResult.error(404, "用户不存在");
+        }
+        UserInfoDto userInfo = new UserInfoDto();
+        BeanUtils.copyProperties(user, userInfo);
+        return ResponseResult.success(userInfo);
+    }
+
+    @Override
+    public ResponseResult<String> logout() {
+        return ResponseResult.success("登出成功");
     }
 
     @Override

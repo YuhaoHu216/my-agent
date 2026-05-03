@@ -34,7 +34,7 @@ spring:
 server:
   port: 8123
   servlet:
-    context-path: /api
+    context-path: /api   # 剥离掉请求中的/api
 
 # springdoc-openapi
 springdoc:

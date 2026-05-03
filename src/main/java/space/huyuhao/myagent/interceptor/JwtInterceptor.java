@@ -26,7 +26,8 @@ public class JwtInterceptor implements HandlerInterceptor {
         }
 
         if (token != null && jwtUtil.validateToken(token)) {
-            // 验证通过，继续执行
+            // 验证通过，将用户名存入request供后续使用
+            request.setAttribute("username", jwtUtil.getUsernameFromToken(token));
             return true;
         } else {
             // 验证失败，返回401
