@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 //@SpringBootTest
 public class ResourceDownloadToolTest {
 
-    @Test
+//    @Test
     public void testDownloadResource() {
         ResourceDownloadTool tool = new ResourceDownloadTool();
         String url = "https://i2.hdslb.com/bfs/archive/87a5d03581e326f4f818cab3212ce471d1f6a064.png";

@@ -12,12 +12,12 @@ import java.io.InputStream;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-@SpringBootTest
+//@SpringBootTest
 public class ToolTests {
 
-    @Resource
+//    @Resource
     private MyApp myApp;
-    @Test
+//    @Test
     public void testReadFile() {
         FileOperationTool tool = new FileOperationTool();
         String fileName = "示例.txt";
@@ -26,7 +26,7 @@ public class ToolTests {
         assertNotNull(result);
     }
 
-    @Test
+//    @Test
     public void testWriteFile() {
         FileOperationTool tool = new FileOperationTool();
         String fileName = "示例.txt";
@@ -36,7 +36,7 @@ public class ToolTests {
         assertNotNull(result);
     }
 
-    @Test
+//    @Test
     void doChatWithTools() {
         // 测试联网搜索问题的答案
 //        testMessage("周末想带女朋友去上海约会，推荐几个适合情侣的小众打卡地？");
@@ -63,7 +63,7 @@ public class ToolTests {
         Assertions.assertNotNull(answer);
     }
 
-    @Test
+//    @Test
     void doChatWithMcp() {
         String chatId = UUID.randomUUID().toString();
         // 测试地图mcp

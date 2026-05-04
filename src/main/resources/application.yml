@@ -3,11 +3,10 @@ spring:
     name: my-agent
   ai:
     dashscope:
-      api-key: ${ALI_API_KEY}  # 从环境变量读取或使用默认值
+      api-key: ${ALI_API_KEY}
       chat:
         options:
-#          model: qwen-plus
-          timeout: 180000  # 超时时间180秒（3分钟）
+          timeout: 180000
       vectorstore:
         pgvector:
           index-type: HNSW
@@ -17,26 +16,25 @@ spring:
     mcp:
       client:
         enabled: true
-        request-timeout: 60000
+        request-timeout: 120000
         stdio:
           servers-configuration: classpath:mcp-servers.json
       retry:
-        max-attempts: 3  # 最大重试次数
+        max-attempts: 3
         backoff:
-          initial-interval: 2000  # 初始重试间隔2秒
-          multiplier: 2  # 重试间隔倍数
-          max-interval: 10000  # 最大重试间隔10秒
+          initial-interval: 2000
+          multiplier: 2
+          max-interval: 10000
   datasource:
     url: jdbc:mysql://localhost:3306/my_agent?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
     username: root
-    password: 111111
+    password: Zf9@Qv7!Lm2Xc8$HpT8+rK!2pWq9@Vx6$Mn
     driver-class-name: com.mysql.cj.jdbc.Driver
 server:
   port: 8123
   servlet:
-    context-path: /api   # 剥离掉请求中的/api
+    context-path: /api
 
-# springdoc-openapi
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
@@ -48,14 +46,20 @@ springdoc:
     - group: 'default'
       paths-to-match: '/**'
       packages-to-scan: space.huyuhao.myagent.controller
-# knife4j
 knife4j:
   enable: true
   setting:
     language: zh_cn
 
-#logging:
-#  level:
-#    org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor: DEBUG
-#    org.springframework.ai.chat.client.advisor.ReReadingAdvisor: DEBUG
-#    org.springframework.ai.chat.client.advisor.MyLoggerAdvisor: INFO
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: jdbc:mysql://mysql:3306/my_agent?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+  ai:
+    mcp:
+      client:
+        stdio:
+          servers-configuration: classpath:mcp-servers-linux.json

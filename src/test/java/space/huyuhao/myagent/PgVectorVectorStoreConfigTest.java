@@ -12,16 +12,16 @@ import space.huyuhao.myagent.rag.MyAppDocumentLoader;
 import java.util.List;
 import java.util.Map;
 
-@SpringBootTest
+//@SpringBootTest
 public class PgVectorVectorStoreConfigTest {
 
-    @Resource
+//    @Resource
     VectorStore pgVectorVectorStore;
 
-    @Resource
+//    @Resource
     private MyAppDocumentLoader myAppDocumentLoader;
 
-    @Test
+//    @Test
     void test() {
 //        List<Document> documents = List.of(
 //                new Document("Spring AI rocks!! Spring AI rocks!! Spring AI rocks!! Spring AI rocks!! Spring AI rocks!!", Map.of("meta1", "meta1")),

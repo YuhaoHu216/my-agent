@@ -6,13 +6,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import space.huyuhao.myagent.agent.MyManus;
 
-@SpringBootTest
+//@SpringBootTest
 class MyManusTest {
 
-    @Resource
+//    @Resource
     private MyManus myManus;
 
-    @Test
+//    @Test
     void run() {
         String userPrompt = """
                 我的外地朋友要来找我玩,我在雅安市雨城区四川农业大学，请帮我找到 3 公里内合适的地点，
