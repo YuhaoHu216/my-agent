@@ -17,6 +17,11 @@ public class WebConfig implements WebMvcConfigurer {
         // 添加JWT拦截器，排除登录、注册和健康检查接口
         registry.addInterceptor(jwtInterceptor)
                 .addPathPatterns("/**")
-                .excludePathPatterns("/user/login", "/user/register", "/health", "/error");
+                .excludePathPatterns("/user/login",
+                                    "/user/register",
+                                    "/health",
+                                    "/error",
+                                    "/milvus/health"
+                );
     }
 }

@@ -30,6 +30,10 @@ spring:
     username: root
     password: Zf9@Qv7!Lm2Xc8$HpT8+rK!2pWq9@Vx6$Mn
     driver-class-name: com.mysql.cj.jdbc.Driver
+file:
+  upload:
+    path: ./uploads
+
 server:
   port: 8123
   servlet:
@@ -51,6 +55,23 @@ knife4j:
   setting:
     language: zh_cn
 
+
+# DashScope SDK 配置（向量嵌入服务使用）
+dashscope:
+  api:
+    key: ${ALI_API_KEY}
+  embedding:
+    model: text-embedding-v3
+
+milvus:
+  host: localhost        # Milvus 服务地址
+  port: 19530            # Milvus 端口
+  username: ""           # 用户名（空表示无认证）
+  password: ""           # 密码
+  database: default      # 数据库名
+  timeout: 10000         # 连接超时（毫秒）
+
+# 为linux准备的
 ---
 spring:
   config:
