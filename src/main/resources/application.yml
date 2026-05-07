@@ -7,12 +7,6 @@ spring:
       chat:
         options:
           timeout: 180000
-      vectorstore:
-        pgvector:
-          index-type: HNSW
-          dimension: 1536
-          distance: COSINE_DISTANCE
-          max-document-batch-size: 10000
     mcp:
       client:
         enabled: true

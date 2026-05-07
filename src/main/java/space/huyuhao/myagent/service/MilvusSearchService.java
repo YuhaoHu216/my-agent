@@ -1,4 +1,4 @@
-package space.huyuhao.myagent.rag;
+package space.huyuhao.myagent.service;
 
 import io.milvus.client.MilvusServiceClient;
 import io.milvus.grpc.SearchResults;
@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import space.huyuhao.myagent.constant.MilvusConstants;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,15 +22,26 @@ import java.util.List;
  * 负责从 Milvus 中搜索相似向量
  */
 @Service
-public class VectorSearchService {
+public class MilvusSearchService {
 
-    private static final Logger logger = LoggerFactory.getLogger(VectorSearchService.class);
+    private static final Logger logger = LoggerFactory.getLogger(MilvusSearchService.class);
 
     @Autowired
     private MilvusServiceClient milvusClient;
 
     @Autowired
     private VectorEmbeddingService embeddingService;
+
+    private void loadCollection() {
+        R<io.milvus.param.RpcStatus> response = milvusClient.loadCollection(
+                io.milvus.param.collection.LoadCollectionParam.newBuilder()
+                        .withCollectionName(MilvusConstants.MILVUS_COLLECTION_NAME)
+                        .build()
+        );
+        if (response.getStatus() != 0 && response.getStatus() != 65535) {
+            logger.warn("加载 collection 警告: {}", response.getMessage());
+        }
+    }
 
     /**
      * 搜索相似文档
@@ -41,6 +53,9 @@ public class VectorSearchService {
     public List<SearchResult> searchSimilarDocuments(String query, int topK) {
         try {
             logger.info("开始搜索相似文档, 查询: {}, topK: {}", query, topK);
+
+            // 确保 collection 已加载
+            loadCollection();
 
             // 1. 将查询文本向量化
             List<Float> queryVector = embeddingService.generateQueryVector(query);

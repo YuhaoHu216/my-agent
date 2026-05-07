@@ -1,4 +1,4 @@
-package space.huyuhao.myagent.rag;
+package space.huyuhao.myagent.config;
 
 import jakarta.annotation.Resource;
 import org.springframework.ai.document.Document;
@@ -6,7 +6,7 @@ import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import space.huyuhao.myagent.rag.MyAppDocumentLoader;
 
 import java.util.List;
 

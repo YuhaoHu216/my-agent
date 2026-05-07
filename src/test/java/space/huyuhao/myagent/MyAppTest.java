@@ -7,10 +7,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import space.huyuhao.myagent.app.MyApp;
 
-//@SpringBootTest
+@SpringBootTest
 class MyAppTest {
 
-//    @Resource
+    @Resource
     private MyApp myApp;
 
 //    @Test
@@ -30,12 +30,12 @@ class MyAppTest {
 //        Assertions.assertNotNull(answer);
     }
 
-//    @Test
+    @Test
     void doChatWithReport() {
         String chatId = UUID.randomUUID().toString();
         // 第一轮
 //        String message = "我的出生日期,星座和mbti是什么";
-        String message = "总结一下我的高中经历";
+        String message = "总结一下我的大学经历";
         MyApp.MyReport myReport = myApp.doChatWithReport(message, chatId);
         Assertions.assertNotNull(myReport);
     }

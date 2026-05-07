@@ -1,4 +1,4 @@
-package space.huyuhao.myagent.rag;
+package space.huyuhao.myagent.service;
 
 import io.milvus.client.MilvusServiceClient;
 import io.milvus.grpc.MutationResult;
@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import space.huyuhao.myagent.constant.MilvusConstants;
+import space.huyuhao.myagent.rag.DocumentChunk;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -27,9 +29,9 @@ import java.util.*;
  * 负责读取文件、生成向量、存储到 Milvus
  */
 @Service
-public class VectorIndexService {
+public class MilvusIndexService {
 
-    private static final Logger logger = LoggerFactory.getLogger(VectorIndexService.class);
+    private static final Logger logger = LoggerFactory.getLogger(MilvusIndexService.class);
 
     @Autowired
     private MilvusServiceClient milvusClient;

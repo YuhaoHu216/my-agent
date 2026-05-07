@@ -1,4 +1,4 @@
-package space.huyuhao.myagent.rag;
+package space.huyuhao.myagent.config;
 
 
 import io.milvus.client.MilvusServiceClient;
@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import jakarta.annotation.PreDestroy;
+import space.huyuhao.myagent.factory.MilvusClientFactory;
 
 /**
  * Milvus 配置类

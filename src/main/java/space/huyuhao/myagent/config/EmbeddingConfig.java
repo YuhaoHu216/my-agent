@@ -1,11 +1,10 @@
-package space.huyuhao.myagent.rag;
+package space.huyuhao.myagent.config;
 
 
 import com.knuddels.jtokkit.api.EncodingType;
 import org.springframework.ai.embedding.BatchingStrategy;
 import org.springframework.ai.embedding.TokenCountBatchingStrategy;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
 //@Configuration
 public class EmbeddingConfig {

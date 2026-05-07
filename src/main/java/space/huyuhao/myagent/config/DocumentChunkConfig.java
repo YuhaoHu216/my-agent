@@ -1,4 +1,4 @@
-package space.huyuhao.myagent.rag;
+package space.huyuhao.myagent.config;
 
 import lombok.Getter;
 import lombok.Setter;

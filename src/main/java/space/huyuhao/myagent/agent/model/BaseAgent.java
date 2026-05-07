@@ -5,12 +5,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
  * 抽象基础代理类，用于管理代理状态和执行流程。
@@ -42,6 +46,13 @@ public abstract class BaseAgent {
     // Memory（需要自主维护会话上下文）
     private List<Message> messageList = new ArrayList<>();
 
+    // RAG 向量存储（可选），volatile 确保异步线程可见
+    private volatile VectorStore vectorStore;
+
+    public void setVectorStore(VectorStore vectorStore) {
+        this.vectorStore = vectorStore;
+    }
+
     /**
      * 运行代理
      *
@@ -57,6 +68,8 @@ public abstract class BaseAgent {
         }
         // 更改状态
         state = AgentState.RUNNING;
+        // 注入 RAG 上下文
+        injectRagContext(userPrompt);
         // 记录消息上下文
         messageList.add(new UserMessage(userPrompt));
         // 保存结果列表
@@ -114,6 +127,8 @@ public abstract class BaseAgent {
 
                 // 更改状态
                 state = AgentState.RUNNING;
+                // 注入 RAG 上下文
+                injectRagContext(userPrompt);
                 // 记录消息上下文
                 messageList.add(new UserMessage(userPrompt));
 
@@ -180,6 +195,31 @@ public abstract class BaseAgent {
      * @return 步骤执行结果
      */
     public abstract String step();
+
+    /**
+     * 注入 RAG 上下文到系统提示词
+     */
+    private void injectRagContext(String userPrompt) {
+        if (vectorStore == null) {
+            return;
+        }
+        try {
+            List<Document> docs = vectorStore.similaritySearch(
+                    SearchRequest.builder().query(userPrompt).topK(4).build()
+            );
+            if (docs != null && !docs.isEmpty()) {
+                String context = docs.stream()
+                        .map(Document::getText)
+                        .collect(Collectors.joining("\n\n---\n\n"));
+                String ragPrompt = "以下是与用户问题相关的参考资料：\n\n" + context
+                        + "\n\n请根据以上参考资料回答用户问题。如果答案不在参考资料中，请如实告知。";
+                this.systemPrompt = ragPrompt + "\n\n---\n\n" + this.systemPrompt;
+                log.info("RAG 已注入 {} 条参考资料到系统提示词", docs.size());
+            }
+        } catch (Exception e) {
+            log.warn("RAG 检索失败，继续不带上下文执行: {}", e.getMessage());
+        }
+    }
 
     /**
      * 清理资源

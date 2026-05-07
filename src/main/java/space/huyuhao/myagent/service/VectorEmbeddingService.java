@@ -1,4 +1,4 @@
-package space.huyuhao.myagent.rag;
+package space.huyuhao.myagent.service;
 
 
 import com.alibaba.dashscope.embeddings.TextEmbedding;

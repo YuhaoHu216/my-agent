@@ -4,22 +4,27 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
+import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import space.huyuhao.myagent.advisor.MyLoggerAdvisor;
 
 @Component
 public class MyManus extends ToolCallAgent {
 
-    public MyManus(ToolCallback[] allTools, ToolCallbackProvider toolCallbackProvider, ChatModel dashscopeChatModel) {
+    public MyManus(ToolCallback[] allTools,
+                   ToolCallbackProvider toolCallbackProvider,
+                   ChatModel dashscopeChatModel,
+                   @Qualifier("milvusVectorStore") VectorStore vectorStore) {
         super(mergeToolCallbacks(allTools, (ToolCallback[]) toolCallbackProvider.getToolCallbacks()));
-//        super(allTools);
         this.setName("myManus");
-        String SYSTEM_PROMPT = """  
+        this.setVectorStore(vectorStore);
+        String SYSTEM_PROMPT = """
                 你是MyManus，一个全能的人工智能助手，旨在解决用户提出的任何任务。您可以使用各种工具来有效地完成复杂的请求。
                 请全程使用中文，包括思考过程以及最终的结果输出。
                 """;
         this.setSystemPrompt(SYSTEM_PROMPT);
-        String NEXT_STEP_PROMPT = """  
+        String NEXT_STEP_PROMPT = """
                 根据用户需求，主动选择最合适的工具或工具组合。对于复杂的任务，您可以分解问题并逐步使用不同的工具来解决它。
                 在使用每个工具后，清楚地解释执行结果并建议下一步。如果您想在任何时候停止交互，请使用‘ doTerminate ’工具/函数调用。
                 """;
