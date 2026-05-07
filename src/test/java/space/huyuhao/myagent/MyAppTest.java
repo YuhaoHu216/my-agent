@@ -13,11 +13,13 @@ class MyAppTest {
     @Resource
     private MyApp myApp;
 
-//    @Test
+    @Test
     void testChat() {
-        String chatId = UUID.randomUUID().toString();
+//        String chatId = UUID.randomUUID().toString();
+        String chatId = "72833b8b-3ea7-493f-bb52-8c05e4dfeca5";
         // 第一轮
-        String message = "总结一下我的高中经历";
+//        String message = "总结一下我的大学经历";
+        String message = "刚刚我问了什么";
         String answer = myApp.doChat(message, chatId);
         Assertions.assertNotNull(answer);
 //        // 第二轮

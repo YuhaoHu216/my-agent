@@ -6,8 +6,9 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.memory.InMemoryChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.data.redis.core.RedisTemplate;
+import space.huyuhao.myagent.chatmemory.RedisChatMemory;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
@@ -36,11 +37,8 @@ public class MyApp {
     private static final String SYSTEM_PROMPT = "你是一个助理,你的master叫 Guyue,你需要回答他的一些问题,他不喜欢长篇大论+" +
                                                 "回答的时候可以加一些颜文字,比如 o((>ω< ))o,不要用emoji";
 
-    public MyApp(ChatModel dashscopeChatModel) {
-        // 初始化基于内存的对话记忆
-        String fileDir = System.getProperty("user.id") + "/chat-memory";
-//        ChatMemory chatMemory = new FileBasedChatMemory(fileDir);
-        ChatMemory chatMemory = new InMemoryChatMemory();
+    public MyApp(ChatModel dashscopeChatModel, RedisTemplate<String, byte[]> redisTemplate) {
+        ChatMemory chatMemory = new RedisChatMemory(redisTemplate);
         chatClient = ChatClient.builder(dashscopeChatModel)
                 .defaultSystem(SYSTEM_PROMPT)
                 .defaultAdvisors(

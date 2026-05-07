@@ -49,7 +49,7 @@ public class MilvusClientFactory {
             // 2. 检查并创建 biz collection（如果不存在）
             if (!collectionExists(client, MilvusConstants.MILVUS_COLLECTION_NAME)) {
                 logger.info("collection '{}' 不存在，正在创建...", MilvusConstants.MILVUS_COLLECTION_NAME);
-                createBizCollection(client);
+                createCollection(client);
                 logger.info("成功创建 collection '{}'", MilvusConstants.MILVUS_COLLECTION_NAME);
                 
                 // 创建索引
@@ -103,9 +103,10 @@ public class MilvusClientFactory {
     }
 
     /**
+     *
      * 创建 biz collection
      */
-    private void createBizCollection(MilvusServiceClient client) {
+    private void createCollection(MilvusServiceClient client) {
         // 定义字段
         FieldType idField = FieldType.newBuilder()
                 .withName("id")
