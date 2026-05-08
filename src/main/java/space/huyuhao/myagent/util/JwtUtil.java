@@ -4,16 +4,18 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
 
 @Component
 public class JwtUtil {
+
+    private static final Logger log = LoggerFactory.getLogger(JwtUtil.class);
 
     @Value("${jwt.secret:mySecretKeyForDemoPurposeOnlyAndShouldBeChangedInProduction}")
     private String secret;
@@ -26,16 +28,13 @@ public class JwtUtil {
     }
 
     public String generateToken(Long userId, String username) {
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("userId", userId);
-        claims.put("username", username);
         Date expirationDate = new Date(System.currentTimeMillis() + expiration * 1000);
-        
+
         return Jwts.builder()
-                .setClaims(claims)
-                .setSubject(username)
-                .setIssuedAt(new Date())
-                .setExpiration(expirationDate)
+                .claim("userId", userId)
+                .subject(username)
+                .issuedAt(new Date())
+                .expiration(expirationDate)
                 .signWith(getSigningKey())
                 .compact();
     }
@@ -54,7 +53,14 @@ public class JwtUtil {
 
     public Long getUserIdFromToken(String token) {
         Claims claims = getClaimsFromToken(token);
-        return claims.get("userId", Long.class);
+        log.info("JWT claims: {}", claims);
+        Object rawUserId = claims.get("userId");
+        log.info("raw userId from claims: {} (type: {})", rawUserId,
+                rawUserId != null ? rawUserId.getClass().getName() : "null");
+        if (rawUserId instanceof Number) {
+            return ((Number) rawUserId).longValue();
+        }
+        return null;
     }
 
     public String getUsernameFromToken(String token) {

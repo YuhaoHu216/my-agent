@@ -51,8 +51,20 @@ public class MilvusSearchService {
      * @return 搜索结果列表
      */
     public List<SearchResult> searchSimilarDocuments(String query, int topK) {
+        return searchSimilarDocuments(query, topK, null);
+    }
+
+    /**
+     * 搜索相似文档（支持标量过滤）
+     *
+     * @param query 查询文本
+     * @param topK 返回最相似的K个结果
+     * @param filterExpression Milvus 标量过滤表达式，如 "metadata[\"userId\"] == 1"，传null表示不过滤
+     * @return 搜索结果列表
+     */
+    public List<SearchResult> searchSimilarDocuments(String query, int topK, String filterExpression) {
         try {
-            logger.info("开始搜索相似文档, 查询: {}, topK: {}", query, topK);
+            logger.info("开始搜索相似文档, 查询: {}, topK: {}, filter: {}", query, topK, filterExpression);
 
             // 确保 collection 已加载
             loadCollection();
@@ -62,15 +74,20 @@ public class MilvusSearchService {
             logger.debug("查询向量生成成功, 维度: {}", queryVector.size());
 
             // 2. 构建搜索参数
-            SearchParam searchParam = SearchParam.newBuilder()
+            SearchParam.Builder builder = SearchParam.newBuilder()
                     .withCollectionName(MilvusConstants.MILVUS_COLLECTION_NAME)
                     .withVectorFieldName("vector")
                     .withVectors(Collections.singletonList(queryVector))
                     .withTopK(topK)
                     .withMetricType(io.milvus.param.MetricType.L2)
                     .withOutFields(List.of("id", "content", "metadata"))
-                    .withParams("{\"nprobe\":10}")
-                    .build();
+                    .withParams("{\"nprobe\":10}");
+
+            if (filterExpression != null && !filterExpression.isBlank()) {
+                builder.withExpr(filterExpression);
+            }
+
+            SearchParam searchParam = builder.build();
 
             // 3. 执行搜索
             R<SearchResults> searchResponse = milvusClient.search(searchParam);
@@ -88,13 +105,13 @@ public class MilvusSearchService {
                 result.setId((String) wrapper.getIDScore(0).get(i).get("id"));
                 result.setContent((String) wrapper.getFieldData("content", 0).get(i));
                 result.setScore(wrapper.getIDScore(0).get(i).getScore());
-                
+
                 // 解析 metadata
                 Object metadataObj = wrapper.getFieldData("metadata", 0).get(i);
                 if (metadataObj != null) {
                     result.setMetadata(metadataObj.toString());
                 }
-                
+
                 results.add(result);
             }
 

@@ -21,7 +21,14 @@ public class WebConfig implements WebMvcConfigurer {
                                     "/user/register",
                                     "/health",
                                     "/error",
-                                    "/milvus/health"
+                                    "/milvus/health",
+                                    // Swagger / Knife4j
+                                    "/doc.html",
+                                    "/swagger-ui/**",
+                                    "/swagger-resources/**",
+                                    "/v3/api-docs/**",
+                                    "/webjars/**",
+                                    "/favicon.ico"
                 );
     }
 }
