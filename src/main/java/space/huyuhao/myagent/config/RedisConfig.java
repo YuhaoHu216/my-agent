@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.RedisSerializer;
+import space.huyuhao.myagent.chatmemory.RedisChatMemory;
 
 @Configuration
 public class RedisConfig {
@@ -19,5 +20,10 @@ public class RedisConfig {
         template.setHashValueSerializer(RedisSerializer.byteArray());
         template.afterPropertiesSet();
         return template;
+    }
+
+    @Bean
+    public RedisChatMemory redisChatMemory(RedisTemplate<String, byte[]> chatMemoryRedisTemplate) {
+        return new RedisChatMemory(chatMemoryRedisTemplate);
     }
 }

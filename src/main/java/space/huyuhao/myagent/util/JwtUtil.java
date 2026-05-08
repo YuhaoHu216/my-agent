@@ -53,10 +53,10 @@ public class JwtUtil {
 
     public Long getUserIdFromToken(String token) {
         Claims claims = getClaimsFromToken(token);
-        log.info("JWT claims: {}", claims);
+//        log.info("JWT claims: {}", claims);
         Object rawUserId = claims.get("userId");
-        log.info("raw userId from claims: {} (type: {})", rawUserId,
-                rawUserId != null ? rawUserId.getClass().getName() : "null");
+//        log.info("raw userId from claims: {} (type: {})", rawUserId,
+//                rawUserId != null ? rawUserId.getClass().getName() : "null");
         if (rawUserId instanceof Number) {
             return ((Number) rawUserId).longValue();
         }
