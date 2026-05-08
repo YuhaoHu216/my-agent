@@ -69,14 +69,14 @@ public class UserServiceImpl implements UserService {
         }
 
         // 生成JWT令牌
-        String token = jwtUtil.generateToken(user.getUsername());
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername());
 
         return ResponseResult.success("登录成功", token);
     }
 
     @Override
-    public ResponseResult<UserInfoDto> getCurrentUser(String username) {
-        User user = findByUsername(username);
+    public ResponseResult<UserInfoDto> getCurrentUser(Long userId) {
+        User user = userMapper.selectById(userId);
         if (user == null) {
             return ResponseResult.error(404, "用户不存在");
         }

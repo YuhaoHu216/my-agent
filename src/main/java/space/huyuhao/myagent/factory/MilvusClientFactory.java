@@ -46,7 +46,7 @@ public class MilvusClientFactory {
             client = connectToMilvus();
             logger.info("成功连接到 Milvus");
 
-            // 2. 检查并创建 biz collection（如果不存在）
+            // 2. 检查并创建 collection（如果不存在）
             if (!collectionExists(client, MilvusConstants.MILVUS_COLLECTION_NAME)) {
                 logger.info("collection '{}' 不存在，正在创建...", MilvusConstants.MILVUS_COLLECTION_NAME);
                 createCollection(client);

@@ -25,8 +25,9 @@ public class JwtUtil {
         return Keys.hmacShaKeyFor(secret.getBytes());
     }
 
-    public String generateToken(String username) {
+    public String generateToken(Long userId, String username) {
         Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", userId);
         claims.put("username", username);
         Date expirationDate = new Date(System.currentTimeMillis() + expiration * 1000);
         
@@ -49,6 +50,11 @@ public class JwtUtil {
         } catch (JwtException e) {
             throw new RuntimeException("Invalid JWT token", e);
         }
+    }
+
+    public Long getUserIdFromToken(String token) {
+        Claims claims = getClaimsFromToken(token);
+        return claims.get("userId", Long.class);
     }
 
     public String getUsernameFromToken(String token) {

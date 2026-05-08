@@ -11,7 +11,7 @@ public interface UserService {
 
     ResponseResult<String> login(UserLoginDto userLoginDto);
 
-    ResponseResult<UserInfoDto> getCurrentUser(String username);
+    ResponseResult<UserInfoDto> getCurrentUser(Long userId);
 
     ResponseResult<String> logout();
 

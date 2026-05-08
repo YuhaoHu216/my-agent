@@ -1,9 +1,9 @@
 package space.huyuhao.myagent.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import space.huyuhao.myagent.context.UserContext;
 import space.huyuhao.myagent.dto.ResponseResult;
 import space.huyuhao.myagent.dto.UserInfoDto;
 import space.huyuhao.myagent.dto.UserLoginDto;
@@ -33,9 +33,8 @@ public class UserController {
 
     @GetMapping("/me")
     @Operation(summary = "获取当前用户信息")
-    public ResponseResult<UserInfoDto> getCurrentUser(HttpServletRequest request) {
-        String username = (String) request.getAttribute("username");
-        return userService.getCurrentUser(username);
+    public ResponseResult<UserInfoDto> getCurrentUser() {
+        return userService.getCurrentUser(UserContext.getUserId());
     }
 
     @PostMapping("/logout")

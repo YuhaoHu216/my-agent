@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
+import space.huyuhao.myagent.context.UserContext;
 import space.huyuhao.myagent.util.JwtUtil;
 
 @Component
@@ -26,8 +27,9 @@ public class JwtInterceptor implements HandlerInterceptor {
         }
 
         if (token != null && jwtUtil.validateToken(token)) {
-            // 验证通过，将用户名存入request供后续使用
-            request.setAttribute("username", jwtUtil.getUsernameFromToken(token));
+            // 验证通过，将用户信息存入ThreadLocal供后续使用
+            UserContext.setUserId(jwtUtil.getUserIdFromToken(token));
+            UserContext.setUsername(jwtUtil.getUsernameFromToken(token));
             return true;
         } else {
             // 验证失败，返回401
@@ -35,5 +37,10 @@ public class JwtInterceptor implements HandlerInterceptor {
             response.getWriter().write("{\"code\":401,\"message\":\"Unauthorized\"}");
             return false;
         }
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
+        UserContext.clear();
     }
 }
