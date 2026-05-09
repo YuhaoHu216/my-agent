@@ -11,7 +11,7 @@ import space.huyuhao.myagent.chatmemory.RedisChatMemory;
 public class RedisConfig {
 
     @Bean
-    public RedisTemplate<String, byte[]> chatMemoryRedisTemplate(RedisConnectionFactory connectionFactory) {
+    public RedisTemplate<String, byte[]> redisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, byte[]> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
         template.setKeySerializer(RedisSerializer.string());
@@ -23,7 +23,7 @@ public class RedisConfig {
     }
 
     @Bean
-    public RedisChatMemory redisChatMemory(RedisTemplate<String, byte[]> chatMemoryRedisTemplate) {
-        return new RedisChatMemory(chatMemoryRedisTemplate);
+    public RedisChatMemory redisChatMemory(RedisTemplate<String, byte[]> redisTemplate) {
+        return new RedisChatMemory(redisTemplate);
     }
 }

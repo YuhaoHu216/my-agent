@@ -6,8 +6,10 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import space.huyuhao.myagent.advisor.MyLoggerAdvisor;
+import space.huyuhao.myagent.chatmemory.RedisChatMemory;
 
 @Component
 public class MyManus extends ToolCallAgent {
@@ -15,10 +17,12 @@ public class MyManus extends ToolCallAgent {
     public MyManus(ToolCallback[] allTools,
                    ToolCallbackProvider toolCallbackProvider,
                    ChatModel dashscopeChatModel,
-                   @Qualifier("milvusVectorStore") VectorStore vectorStore) {
+                   @Qualifier("milvusVectorStore") VectorStore vectorStore,
+                   RedisTemplate<String, byte[]> redisTemplate) {
         super(mergeToolCallbacks(allTools, (ToolCallback[]) toolCallbackProvider.getToolCallbacks()));
         this.setName("myManus");
         this.setVectorStore(vectorStore);
+        this.setChatMemory(new RedisChatMemory(redisTemplate));
         String SYSTEM_PROMPT = """
                 你是MyManus，一个全能的人工智能助手，旨在解决用户提出的任何任务。您可以使用各种工具来有效地完成复杂的请求。
                 请全程使用中文，包括思考过程以及最终的结果输出。

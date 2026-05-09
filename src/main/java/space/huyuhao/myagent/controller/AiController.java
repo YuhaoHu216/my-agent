@@ -5,6 +5,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import space.huyuhao.myagent.agent.MyManus;
 import space.huyuhao.myagent.app.MyApp;
+import space.huyuhao.myagent.context.UserContext;
 
 import java.io.IOException;
 
@@ -38,6 +40,9 @@ public class AiController {
     @Autowired
     @Qualifier("milvusVectorStore")
     private VectorStore vectorStore;
+
+    @Resource
+    private RedisTemplate<String, byte[]> redisTemplate;
 
     @GetMapping("/my_app/chat/sync")
     public String doChatWithMyAppSync(String message, String chatId) {
@@ -100,15 +105,16 @@ public class AiController {
     }
 
     /**
-     * 流式调用 Manus 超级智能体
+     * 流式调用 Manus 超级智能体，与正常 chat 共享同一会话记忆
      *
-     * @param message
-     * @return
+     * @param message 用户消息
+     * @param chatId  会话ID，用于加载/保存持久化记忆
      */
     @GetMapping("/manus/chat")
-    public SseEmitter doChatWithManus(String message) {
-        MyManus myManus = new MyManus(allTools, toolCallbackProvider, dashscopeChatModel, vectorStore);
-        return myManus.runStream(message);
+    public SseEmitter doChatWithManus(String message, String chatId) {
+        UserContext.registerConversationUser(chatId);
+        MyManus myManus = new MyManus(allTools, toolCallbackProvider, dashscopeChatModel, vectorStore, redisTemplate);
+        return myManus.runStream(message, chatId);
     }
 
 

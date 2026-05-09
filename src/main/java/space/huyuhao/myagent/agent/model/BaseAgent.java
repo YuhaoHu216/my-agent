@@ -3,6 +3,7 @@ package space.huyuhao.myagent.agent.model;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.document.Document;
@@ -45,6 +46,10 @@ public abstract class BaseAgent {
 
     // Memory（需要自主维护会话上下文）
     private List<Message> messageList = new ArrayList<>();
+
+    // 持久化 ChatMemory（可选），用于与正常 chat 共享记忆
+    private ChatMemory chatMemory;
+    private String conversationId;
 
     // RAG 向量存储（可选），volatile 确保异步线程可见
     private volatile VectorStore vectorStore;
@@ -102,12 +107,14 @@ public abstract class BaseAgent {
 
 
     /**
-     * 运行代理（流式输出）
+     * 运行代理（流式输出），复用持久化 ChatMemory 中的历史对话
      *
-     * @param userPrompt 用户提示词
+     * @param userPrompt     用户提示词
+     * @param conversationId 会话ID，用于加载/保存持久化记忆
      * @return SseEmitter实例
      */
-    public SseEmitter runStream(String userPrompt) {
+    public SseEmitter runStream(String userPrompt, String conversationId) {
+        this.conversationId = conversationId;
         // 创建SseEmitter，设置较长的超时时间
         SseEmitter emitter = new SseEmitter(300000L); // 5分钟超时
 
@@ -129,8 +136,20 @@ public abstract class BaseAgent {
                 state = AgentState.RUNNING;
                 // 注入 RAG 上下文
                 injectRagContext(userPrompt);
-                // 记录消息上下文
+
+                // 从持久化记忆加载历史对话
+                int historySize = 0;
+                if (chatMemory != null && conversationId != null) {
+                    List<Message> pastMessages = chatMemory.get(conversationId, 10);
+                    if (pastMessages != null && !pastMessages.isEmpty()) {
+                        messageList.addAll(pastMessages);
+                        historySize = pastMessages.size();
+                    }
+                }
+
+                // 记录当前用户消息
                 messageList.add(new UserMessage(userPrompt));
+                int savedIndex = messageList.size() - 1; // 从用户消息开始算新消息
 
                 try {
                     for (int i = 0; i < maxSteps && state != AgentState.FINISHED; i++) {
@@ -162,6 +181,8 @@ public abstract class BaseAgent {
                         emitter.completeWithError(ex);
                     }
                 } finally {
+                    // 将本轮新增的消息持久化到 ChatMemory
+                    persistNewMessages(savedIndex);
                     // 清理资源
                     this.cleanup();
                 }
@@ -186,6 +207,23 @@ public abstract class BaseAgent {
         });
 
         return emitter;
+    }
+
+    /**
+     * 将 messageList 中从 startIndex 开始的新消息保存到持久化 ChatMemory
+     */
+    private void persistNewMessages(int startIndex) {
+        if (chatMemory == null || conversationId == null) {
+            return;
+        }
+        if (startIndex >= messageList.size()) {
+            return;
+        }
+        List<Message> newMessages = new ArrayList<>(messageList.subList(startIndex, messageList.size()));
+        if (!newMessages.isEmpty()) {
+            chatMemory.add(conversationId, newMessages);
+            log.info("保存了 {} 条新消息到会话记忆", newMessages.size());
+        }
     }
 
 
