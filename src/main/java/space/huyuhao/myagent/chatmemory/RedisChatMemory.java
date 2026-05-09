@@ -46,9 +46,17 @@ public class RedisChatMemory implements ChatMemory {
         this.redisTemplate = redisTemplate;
     }
 
+    private Long resolveUserId(String conversationId) {
+        Long userId = UserContext.getUserId();
+        if (userId == null && conversationId != null) {
+            userId = UserContext.getUserIdByConversationId(conversationId);
+        }
+        return userId;
+    }
+
     @Override
     public void add(String conversationId, List<Message> messages) {
-        Long userId = UserContext.getUserId();
+        Long userId = resolveUserId(conversationId);
         String key = KEY_PREFIX + userId + ":" + conversationId;
         byte[] existing = redisTemplate.opsForValue().get(key);
         boolean isNew = existing == null;
@@ -87,7 +95,7 @@ public class RedisChatMemory implements ChatMemory {
 
     @Override
     public List<Message> get(String conversationId, int lastN) {
-        Long userId = UserContext.getUserId();
+        Long userId = resolveUserId(conversationId);
         String key = KEY_PREFIX + userId + ":" + conversationId;
         byte[] data = redisTemplate.opsForValue().get(key);
         if (data == null) {
@@ -102,9 +110,10 @@ public class RedisChatMemory implements ChatMemory {
 
     @Override
     public void clear(String conversationId) {
-        Long userId = UserContext.getUserId();
+        Long userId = resolveUserId(conversationId);
         String key = KEY_PREFIX + userId + ":" + conversationId;
         redisTemplate.delete(key);
+        UserContext.removeConversationUser(conversationId);
     }
 
     /**
@@ -163,6 +172,7 @@ public class RedisChatMemory implements ChatMemory {
         String nameKey = NAME_KEY_PREFIX + userId + ":" + conversationId;
         Boolean result = redisTemplate.delete(key);
         redisTemplate.delete(nameKey);
+        UserContext.removeConversationUser(conversationId);
         return result != null && result;
     }
 
@@ -183,7 +193,7 @@ public class RedisChatMemory implements ChatMemory {
      * 设置会话名称（内部使用）
      */
     private void setConversationName(String conversationId, String name) {
-        Long userId = UserContext.getUserId();
+        Long userId = resolveUserId(conversationId);
         if (userId == null) {
             return;
         }

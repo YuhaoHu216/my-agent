@@ -16,6 +16,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import space.huyuhao.myagent.advisor.MyLoggerAdvisor;
+import space.huyuhao.myagent.context.UserContext;
 
 import java.util.List;
 
@@ -122,6 +123,8 @@ public class MyApp {
     }
 
     public Flux<String> doChatByStream(String message, String chatId) {
+        // 在请求线程上绑定 userId，解决 reactive 流切换到其他线程后 ThreadLocal 丢失的问题
+        UserContext.registerConversationUser(chatId);
         return chatClient
                 .prompt()
                 .user(message)
