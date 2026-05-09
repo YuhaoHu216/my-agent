@@ -20,7 +20,7 @@ public class JwtUtil {
     @Value("${jwt.secret:mySecretKeyForDemoPurposeOnlyAndShouldBeChangedInProduction}")
     private String secret;
 
-    @Value("${jwt.expiration:3600}") // 默认1小时
+    @Value("${jwt.expiration:36000}") // 默认1小时
     private Long expiration;
 
     private SecretKey getSigningKey() {

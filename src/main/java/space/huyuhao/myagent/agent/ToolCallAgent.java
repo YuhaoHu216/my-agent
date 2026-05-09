@@ -18,6 +18,7 @@ import org.springframework.ai.tool.ToolCallback;
 import space.huyuhao.myagent.agent.model.AgentState;
 import space.huyuhao.myagent.agent.model.ReActAgent;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -58,12 +59,12 @@ public class ToolCallAgent extends ReActAgent {
      */
     @Override
     public String think() {
-        if (getNextStepPrompt() != null && !getNextStepPrompt().isEmpty()) {
-            UserMessage userMessage = new UserMessage(getNextStepPrompt());
-            getMessageList().add(userMessage);
-        }
         List<Message> messageList = getMessageList();
-        Prompt prompt = new Prompt(messageList, chatOptions);
+        List<Message> promptMessages = new ArrayList<>(messageList);
+        if (getNextStepPrompt() != null && !getNextStepPrompt().isEmpty()) {
+            promptMessages.add(new UserMessage(getNextStepPrompt()));
+        }
+        Prompt prompt = new Prompt(promptMessages, chatOptions);
         try {
             // 获取带工具选项的响应
             ChatResponse chatResponse = getChatClient().prompt(prompt)
