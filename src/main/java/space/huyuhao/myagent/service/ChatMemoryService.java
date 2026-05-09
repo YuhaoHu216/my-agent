@@ -31,4 +31,12 @@ public interface ChatMemoryService {
      * @return 会话ID及其概要信息的映射
      */
     ResponseResult<Map<String, Object>> getAllConversationsSummary();
+
+    /**
+     * 更新会话名称
+     * @param conversationId 会话ID
+     * @param name 新的会话名称
+     * @return 操作结果
+     */
+    ResponseResult<String> updateConversationName(String conversationId, String name);
 }

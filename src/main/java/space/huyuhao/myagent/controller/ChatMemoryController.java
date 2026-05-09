@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/chat-memory")
+@RequestMapping("/chat-memory")
 public class ChatMemoryController {
 
     @Autowired
@@ -45,5 +45,15 @@ public class ChatMemoryController {
     @GetMapping("/conversations-summary")
     public ResponseResult<Map<String, Object>> getAllConversationsSummary() {
         return chatMemoryService.getAllConversationsSummary();
+    }
+
+    /**
+     * 更新会话名称
+     */
+    @PutMapping("/conversations/{conversationId}/name")
+    public ResponseResult<String> updateConversationName(
+            @PathVariable String conversationId,
+            @RequestParam String name) {
+        return chatMemoryService.updateConversationName(conversationId, name);
     }
 }

@@ -19,6 +19,8 @@ import java.util.stream.Collectors;
 public class RedisChatMemory implements ChatMemory {
 
     private static final String KEY_PREFIX = "chat:memory:";
+    private static final String NAME_KEY_PREFIX = "chat:memory:name:";
+    private static final int MAX_NAME_LENGTH = 50;
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -49,11 +51,38 @@ public class RedisChatMemory implements ChatMemory {
         Long userId = UserContext.getUserId();
         String key = KEY_PREFIX + userId + ":" + conversationId;
         byte[] existing = redisTemplate.opsForValue().get(key);
-        List<SlimMessage> all = existing == null ? new ArrayList<>() : deserialize(existing);
+        boolean isNew = existing == null;
+        List<SlimMessage> all = isNew ? new ArrayList<>() : deserialize(existing);
         for (Message msg : messages) {
             all.add(SlimMessage.from(msg));
         }
         redisTemplate.opsForValue().set(key, serialize(all));
+
+        if (isNew) {
+            String firstName = findFirstUserMessageText(messages);
+            if (firstName != null) {
+                setConversationName(conversationId, truncateName(firstName));
+            }
+        }
+    }
+
+    private String findFirstUserMessageText(List<Message> messages) {
+        for (Message msg : messages) {
+            if (msg.getMessageType() == MessageType.USER) {
+                String text = msg.getText();
+                if (text != null && !text.isBlank()) {
+                    return text;
+                }
+            }
+        }
+        return null;
+    }
+
+    private String truncateName(String text) {
+        if (text.length() <= MAX_NAME_LENGTH) {
+            return text;
+        }
+        return text.substring(0, MAX_NAME_LENGTH) + "...";
     }
 
     @Override
@@ -131,8 +160,55 @@ public class RedisChatMemory implements ChatMemory {
         }
 
         String key = KEY_PREFIX + userId + ":" + conversationId;
+        String nameKey = NAME_KEY_PREFIX + userId + ":" + conversationId;
         Boolean result = redisTemplate.delete(key);
+        redisTemplate.delete(nameKey);
         return result != null && result;
+    }
+
+    /**
+     * 获取会话名称
+     */
+    public String getConversationName(String conversationId) {
+        Long userId = UserContext.getUserId();
+        if (userId == null) {
+            return null;
+        }
+        String nameKey = NAME_KEY_PREFIX + userId + ":" + conversationId;
+        byte[] data = redisTemplate.opsForValue().get(nameKey);
+        return data != null ? new String(data, java.nio.charset.StandardCharsets.UTF_8) : null;
+    }
+
+    /**
+     * 设置会话名称（内部使用）
+     */
+    private void setConversationName(String conversationId, String name) {
+        Long userId = UserContext.getUserId();
+        if (userId == null) {
+            return;
+        }
+        String nameKey = NAME_KEY_PREFIX + userId + ":" + conversationId;
+        redisTemplate.opsForValue().set(nameKey, name.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    /**
+     * 更新会话名称（用户调用）
+     */
+    public boolean updateConversationName(String conversationId, String name) {
+        Long userId = UserContext.getUserId();
+        if (userId == null) {
+            return false;
+        }
+        String messagesKey = KEY_PREFIX + userId + ":" + conversationId;
+        if (Boolean.FALSE.equals(redisTemplate.hasKey(messagesKey))) {
+            return false;
+        }
+        String trimmed = name != null ? name.trim() : "";
+        if (trimmed.isEmpty()) {
+            return false;
+        }
+        setConversationName(conversationId, truncateName(trimmed));
+        return true;
     }
 
     /**
@@ -173,8 +249,14 @@ public class RedisChatMemory implements ChatMemory {
                     // 获取过期时间作为最后活动时间
                     Long expirationTime = getExpirationTime(key);
                     
+                    String conversationName = getConversationName(conversationId);
+                    if (conversationName == null || conversationName.isEmpty()) {
+                        conversationName = "未命名会话";
+                    }
+
                     summaries.add(new ConversationSummary(
                             conversationId,
+                            conversationName,
                             messages.size(),
                             lastMessagePreview,
                             lastMessageType,
@@ -232,6 +314,7 @@ public class RedisChatMemory implements ChatMemory {
      */
     public record ConversationSummary(
             String conversationId,
+            String name,
             int messageCount,
             String lastMessagePreview,
             String lastMessageType,

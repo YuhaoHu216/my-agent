@@ -3,7 +3,6 @@ package space.huyuhao.myagent.service.impl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import space.huyuhao.myagent.chatmemory.RedisChatMemory;
-import space.huyuhao.myagent.context.UserContext;
 import space.huyuhao.myagent.dto.ResponseResult;
 import space.huyuhao.myagent.service.ChatMemoryService;
 
@@ -57,6 +56,7 @@ public class ChatMemoryServiceImpl implements ChatMemoryService {
             Map<String, Object> conversationsSummary = new HashMap<>();
             for (RedisChatMemory.ConversationSummary summary : summaries) {
                 Map<String, Object> summaryMap = new HashMap<>();
+                summaryMap.put("name", summary.name());
                 summaryMap.put("messageCount", summary.messageCount());
                 summaryMap.put("lastMessagePreview", summary.lastMessagePreview());
                 summaryMap.put("lastMessageType", summary.lastMessageType());
@@ -71,6 +71,18 @@ public class ChatMemoryServiceImpl implements ChatMemoryService {
         }
     }
 
-
+    @Override
+    public ResponseResult<String> updateConversationName(String conversationId, String name) {
+        try {
+            boolean updated = redisChatMemory.updateConversationName(conversationId, name);
+            if (updated) {
+                return ResponseResult.success("会话名称更新成功");
+            } else {
+                return ResponseResult.error("会话不存在或名称无效");
+            }
+        } catch (Exception e) {
+            return ResponseResult.error("更新会话名称失败: " + e.getMessage());
+        }
+    }
 
 }
