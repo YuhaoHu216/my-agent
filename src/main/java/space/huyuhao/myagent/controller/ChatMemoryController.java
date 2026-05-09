@@ -1,5 +1,6 @@
 package space.huyuhao.myagent.controller;
 
+import cn.hutool.core.lang.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import space.huyuhao.myagent.dto.ResponseResult;
@@ -14,6 +15,14 @@ public class ChatMemoryController {
 
     @Autowired
     private ChatMemoryService chatMemoryService;
+
+    /**
+     * 获取新会话id
+     */
+    @GetMapping("/new/conversationId")
+    public ResponseResult<String> newConversationId() {
+        return ResponseResult.success(UUID.randomUUID().toString());
+    }
 
     /**
      * 获取用户所有历史会话ID列表
