@@ -46,7 +46,10 @@ public class UserDocumentServiceImpl implements UserDocumentService {
 
     private static final Logger logger = LoggerFactory.getLogger(UserDocumentServiceImpl.class);
     private static final Gson gson = new Gson();
-    private static final Set<String> ALLOWED_EXTENSIONS = Set.of(".txt", ".md");
+    /** 需要分块+向量化插入Milvus的格式 */
+    private static final Set<String> VECTORIZABLE_EXTENSIONS = Set.of(".md");
+    /** 仅存储到磁盘、不走向量数据库的格式 */
+    private static final Set<String> STORABLE_EXTENSIONS = Set.of(".txt",".docx",".doc",".pdf",".vsdx");
 
     @Autowired
     private UserDocumentMapper userDocumentMapper;
@@ -86,7 +89,9 @@ public class UserDocumentServiceImpl implements UserDocumentService {
             return ResponseResult.error("不支持的文件类型，仅支持 .txt 和 .md");
         }
         extension = originalName.substring(dotIndex).toLowerCase();
-        if (!ALLOWED_EXTENSIONS.contains(extension)) {
+        boolean isVectorizable = VECTORIZABLE_EXTENSIONS.contains(extension);
+        boolean isStorable = STORABLE_EXTENSIONS.contains(extension);
+        if (!isVectorizable && !isStorable) {
             return ResponseResult.error("不支持的文件类型，仅支持 .txt 和 .md");
         }
 
@@ -104,35 +109,38 @@ public class UserDocumentServiceImpl implements UserDocumentService {
             Path savedPath = userDir.resolve(uniqueName);
             file.transferTo(savedPath.toFile());
 
-            // 3. 读取文件内容
-            String content = Files.readString(savedPath);
-            if (content.isBlank()) {
-                Files.deleteIfExists(savedPath);
-                return ResponseResult.error("文件内容为空");
-            }
-
-            // 4. 分块
-            List<DocumentChunk> chunks = chunkService.chunkDocument(content, savedPath.toString());
-            if (chunks.isEmpty()) {
-                Files.deleteIfExists(savedPath);
-                return ResponseResult.error("文件分块失败");
-            }
-
-            // 5. 构建相对路径（用于存储和 Milvus 标识）
+            // 3. 构建相对路径
             String relativePath = userId + "/" + uniqueName;
             String normalizedSource = relativePath.replace(File.separator, "/");
 
-            // 6. 向量化并插入 Milvus
-            insertChunksToMilvus(userId, chunks, normalizedSource, originalName, extension);
+            int chunkCount = 0;
 
-            // 7. 记录到 MySQL
+            if (isVectorizable) {
+                // 向量化流程：读取 → 分块 → 向量化 → 插入 Milvus
+                String content = Files.readString(savedPath);
+                if (content.isBlank()) {
+                    Files.deleteIfExists(savedPath);
+                    return ResponseResult.error("文件内容为空");
+                }
+
+                List<DocumentChunk> chunks = chunkService.chunkDocument(content, savedPath.toString());
+                if (chunks.isEmpty()) {
+                    Files.deleteIfExists(savedPath);
+                    return ResponseResult.error("文件分块失败");
+                }
+
+                insertChunksToMilvus(userId, chunks, normalizedSource, originalName, extension);
+                chunkCount = chunks.size();
+            }
+
+            // 4. 记录到 MySQL
             UserDocument doc = new UserDocument();
             doc.setUserId(userId);
             doc.setFileName(originalName);
             doc.setFilePath(normalizedSource);
             doc.setFileSize(file.getSize());
             doc.setFileExtension(extension);
-            doc.setChunkCount(chunks.size());
+            doc.setChunkCount(chunkCount);
             doc.setStatus(1);
             doc.setCreateTime(LocalDateTime.now());
             doc.setUpdateTime(LocalDateTime.now());
@@ -143,10 +151,10 @@ public class UserDocumentServiceImpl implements UserDocumentService {
             result.setId(doc.getId());
             result.setFileName(originalName);
             result.setFileSize(file.getSize());
-            result.setChunkCount(chunks.size());
+            result.setChunkCount(chunkCount);
             result.setCreateTime(doc.getCreateTime());
 
-            logger.info("文档上传成功: userId={}, fileName={}, chunks={}", userId, originalName, chunks.size());
+            logger.info("文档上传成功: userId={}, fileName={}, chunks={}", userId, originalName, chunkCount);
             return ResponseResult.success("上传成功", result);
 
         } catch (Exception e) {
@@ -222,19 +230,21 @@ public class UserDocumentServiceImpl implements UserDocumentService {
         }
 
         try {
-            // 2. 从 Milvus 删除
-            loadCollection();
-            String expr = String.format("metadata[\"userId\"] == %d && metadata[\"_source\"] == \"%s\"",
-                    userId, doc.getFilePath());
-            DeleteParam deleteParam = DeleteParam.newBuilder()
-                    .withCollectionName(MilvusConstants.MILVUS_COLLECTION_NAME)
-                    .withExpr(expr)
-                    .build();
-            R<MutationResult> deleteResponse = milvusClient.delete(deleteParam);
-            if (deleteResponse.getStatus() != 0) {
-                logger.warn("Milvus 删除警告: {}", deleteResponse.getMessage());
-            } else {
-                logger.info("已从 Milvus 删除 {} 条向量记录", deleteResponse.getData().getDeleteCnt());
+            // 2. 仅向量化文档需要从 Milvus 删除
+            if (doc.getChunkCount() != null && doc.getChunkCount() > 0) {
+                loadCollection();
+                String expr = String.format("metadata[\"userId\"] == %d && metadata[\"_source\"] == \"%s\"",
+                        userId, doc.getFilePath());
+                DeleteParam deleteParam = DeleteParam.newBuilder()
+                        .withCollectionName(MilvusConstants.MILVUS_COLLECTION_NAME)
+                        .withExpr(expr)
+                        .build();
+                R<MutationResult> deleteResponse = milvusClient.delete(deleteParam);
+                if (deleteResponse.getStatus() != 0) {
+                    logger.warn("Milvus 删除警告: {}", deleteResponse.getMessage());
+                } else {
+                    logger.info("已从 Milvus 删除 {} 条向量记录", deleteResponse.getData().getDeleteCnt());
+                }
             }
 
             // 3. MySQL 软删除
