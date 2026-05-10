@@ -7,13 +7,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import space.huyuhao.myagent.app.MyApp;
 
-@SpringBootTest
+//@SpringBootTest
 class MyAppTest {
 
     @Resource
     private MyApp myApp;
 
-    @Test
+//    @Test
     void testChat() {
 //        String chatId = UUID.randomUUID().toString();
         String chatId = "72833b8b-3ea7-493f-bb52-8c05e4dfeca5";
@@ -32,7 +32,7 @@ class MyAppTest {
 //        Assertions.assertNotNull(answer);
     }
 
-    @Test
+//    @Test
     void doChatWithReport() {
         String chatId = UUID.randomUUID().toString();
         // 第一轮

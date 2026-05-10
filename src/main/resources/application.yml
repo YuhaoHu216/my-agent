@@ -87,6 +87,9 @@ spring:
   config:
     activate:
       on-profile: prod
+  data:
+    redis:
+      host: redis
   datasource:
     url: jdbc:mysql://mysql:3306/my_agent?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
   ai:
