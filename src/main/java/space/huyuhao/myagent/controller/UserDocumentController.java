@@ -3,6 +3,7 @@ package space.huyuhao.myagent.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import space.huyuhao.myagent.dto.*;
@@ -39,5 +40,11 @@ public class UserDocumentController {
     @Operation(summary = "删除文档")
     public ResponseResult<String> delete(@PathVariable Long id) {
         return userDocumentService.delete(id);
+    }
+
+    @GetMapping("/download/{id}")
+    @Operation(summary = "下载文档")
+    public ResponseEntity<?> download(@PathVariable Long id) {
+        return userDocumentService.download(id);
     }
 }

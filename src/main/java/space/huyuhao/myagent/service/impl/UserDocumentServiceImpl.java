@@ -25,8 +25,15 @@ import space.huyuhao.myagent.service.*;
 import space.huyuhao.myagent.service.MilvusSearchService.SearchResult;
 
 import jakarta.annotation.PostConstruct;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import java.io.File;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -255,6 +262,46 @@ public class UserDocumentServiceImpl implements UserDocumentService {
         } catch (Exception e) {
             logger.error("删除文档失败", e);
             return ResponseResult.error("删除失败: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public ResponseEntity<?> download(Long documentId) {
+        Long userId = UserContext.getUserId();
+        UserDocument doc = userDocumentMapper.selectByUserIdAndId(userId, documentId);
+        if (doc == null) {
+            return ResponseEntity.status(404)
+                    .body(ResponseResult.error(404, "文档不存在或无权操作"));
+        }
+
+        try {
+            Path filePath = Paths.get(uploadPath, doc.getFilePath()).normalize();
+            Path uploadDir = Paths.get(uploadPath).normalize().toAbsolutePath();
+            if (!filePath.toAbsolutePath().startsWith(uploadDir)) {
+                logger.warn("文件路径越权，禁止下载: {}", doc.getFilePath());
+                return ResponseEntity.status(403)
+                        .body(ResponseResult.error(403, "文件路径不合法"));
+            }
+
+            Resource resource = new UrlResource(filePath.toUri());
+            if (!resource.exists()) {
+                return ResponseEntity.status(404)
+                        .body(ResponseResult.error(404, "文件不存在"));
+            }
+
+            String encodedFileName = URLEncoder.encode(doc.getFileName(), StandardCharsets.UTF_8)
+                    .replaceAll("\\+", "%20");
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename*=UTF-8''" + encodedFileName)
+                    .body(resource);
+
+        } catch (Exception e) {
+            logger.error("下载文档失败: docId={}", documentId, e);
+            return ResponseEntity.status(500)
+                    .body(ResponseResult.error("下载失败"));
         }
     }
 

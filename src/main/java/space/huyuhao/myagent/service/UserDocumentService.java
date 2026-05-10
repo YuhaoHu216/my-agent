@@ -1,5 +1,6 @@
 package space.huyuhao.myagent.service;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.multipart.MultipartFile;
 import space.huyuhao.myagent.dto.*;
 
@@ -14,4 +15,6 @@ public interface UserDocumentService {
     ResponseResult<List<DocumentSearchResultDto>> search(DocumentSearchRequestDto request);
 
     ResponseResult<String> delete(Long documentId);
+
+    ResponseEntity<?> download(Long documentId);
 }
