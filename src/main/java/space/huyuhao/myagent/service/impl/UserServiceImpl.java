@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import space.huyuhao.myagent.constant.UserConstants;
 import space.huyuhao.myagent.dto.ResponseResult;
 import space.huyuhao.myagent.dto.UserInfoDto;
 import space.huyuhao.myagent.dto.UserLoginDto;
@@ -35,6 +36,11 @@ public class UserServiceImpl implements UserService {
         // 检查邮箱是否已存在
         if (existsByEmail(userRegisterDto.getEmail())) {
             return ResponseResult.error("邮箱已被注册");
+        }
+
+        // 校验邀请码
+        if (!isValidInviteCode(userRegisterDto.getInviteCode())) {
+            return ResponseResult.error(UserConstants.INVITE_CODE_ERROR);
         }
 
         // 创建用户实体
@@ -107,5 +113,17 @@ public class UserServiceImpl implements UserService {
         QueryWrapper<User> wrapper = new QueryWrapper<>();
         wrapper.eq("email", email);
         return userMapper.selectCount(wrapper) > 0;
+    }
+
+    private boolean isValidInviteCode(String inviteCode) {
+        if (inviteCode == null || inviteCode.isBlank()) {
+            return false;
+        }
+        for (String validCode : UserConstants.VALID_INVITE_CODES) {
+            if (validCode.equals(inviteCode.trim())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

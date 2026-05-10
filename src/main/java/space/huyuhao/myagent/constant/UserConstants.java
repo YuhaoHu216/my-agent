@@ -15,4 +15,8 @@ public class UserConstants {
     public static final String EMAIL_EXISTS = "邮箱已被注册";
     public static final String USER_NOT_FOUND = "用户不存在";
     public static final String PASSWORD_ERROR = "密码错误";
+    public static final String INVITE_CODE_ERROR = "邀请码无效";
+
+    /** 有效邀请码列表 */
+    public static final String[] VALID_INVITE_CODES = {"AGENT2026", "MYAGENT", "hyh666"};
 }

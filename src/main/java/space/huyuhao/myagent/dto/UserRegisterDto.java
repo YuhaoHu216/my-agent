@@ -20,4 +20,7 @@ public class UserRegisterDto {
     private String email;
 
     private String phone;
+
+    @NotBlank(message = "邀请码不能为空")
+    private String inviteCode;
 }
