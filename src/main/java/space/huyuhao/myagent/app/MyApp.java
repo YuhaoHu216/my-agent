@@ -10,6 +10,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.data.redis.core.RedisTemplate;
 import space.huyuhao.myagent.chatmemory.RedisChatMemory;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.model.function.FunctionCallback;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -18,7 +19,11 @@ import reactor.core.publisher.Flux;
 import space.huyuhao.myagent.advisor.MyLoggerAdvisor;
 import space.huyuhao.myagent.context.UserContext;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor.CHAT_MEMORY_CONVERSATION_ID_KEY;
 import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor.CHAT_MEMORY_RETRIEVE_SIZE_KEY;
@@ -40,6 +45,9 @@ public class MyApp {
 
     @Resource
     private VectorStore milvusVectorStore;
+
+    /** 虚拟线程执行器，用于包装 MCP 等需要在流式线程中执行阻塞调用的工具 */
+    private static final ExecutorService blockingExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
 
     public MyApp(ChatModel dashscopeChatModel, RedisTemplate<String, byte[]> redisTemplate) {
@@ -91,25 +99,51 @@ public class MyApp {
     public Flux<String> doChatByStream(String message, String chatId) {
         // 在请求线程上绑定 userId，解决 reactive 流切换到其他线程后 ThreadLocal 丢失的问题
         UserContext.registerConversationUser(chatId);
+        // 将 MCP 工具包装为可安全阻塞的方式，避免在 Netty 线程上 block()
+        FunctionCallback[] mcpTools = wrapForBlocking(toolCallbackProvider.getToolCallbacks());
         return chatClient
                 .prompt()
                 .user(message)
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
                         .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
-                .tools(allTools)
+                .tools(mergeToolCallbacks(allTools, mcpTools))
                 .advisors(new QuestionAnswerAdvisor(milvusVectorStore))
                 .stream()
                 .content();
     }
 
-    /**
-     * 用于合并本地工具和mcp工具
-     * @param tools1
-     * @param tools2
-     * @return
-     */
-    private static ToolCallback[] mergeToolCallbacks(ToolCallback[] tools1, ToolCallback[] tools2) {
-        ToolCallback[] merged = new ToolCallback[tools1.length + tools2.length];
+    /** 将工具回调包装为可在 reactive 线程中安全执行的方式，通过虚拟线程执行阻塞调用 */
+    private static FunctionCallback[] wrapForBlocking(FunctionCallback[] originals) {
+        return Arrays.stream(originals)
+                .map(tool -> new FunctionCallback() {
+                    @Override
+                    public String getName() {
+                        return tool.getName();
+                    }
+                    @Override
+                    public String getDescription() {
+                        return tool.getDescription();
+                    }
+                    @Override
+                    public String getInputTypeSchema() {
+                        return tool.getInputTypeSchema();
+                    }
+                    @Override
+                    public String call(String toolInput) {
+                        try {
+                            return blockingExecutor.submit(() -> tool.call(toolInput))
+                                    .get(120, TimeUnit.SECONDS);
+                        } catch (Exception e) {
+                            throw new RuntimeException("MCP tool call failed: " + tool.getName(), e);
+                        }
+                    }
+                })
+                .toArray(FunctionCallback[]::new);
+    }
+
+    /** 合并两个工具数组 */
+    private static FunctionCallback[] mergeToolCallbacks(FunctionCallback[] tools1, FunctionCallback[] tools2) {
+        FunctionCallback[] merged = new FunctionCallback[tools1.length + tools2.length];
         System.arraycopy(tools1, 0, merged, 0, tools1.length);
         System.arraycopy(tools2, 0, merged, tools1.length, tools2.length);
         return merged;
