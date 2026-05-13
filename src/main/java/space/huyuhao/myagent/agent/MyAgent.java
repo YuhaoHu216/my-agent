@@ -12,9 +12,9 @@ import space.huyuhao.myagent.advisor.MyLoggerAdvisor;
 import space.huyuhao.myagent.chatmemory.RedisChatMemory;
 
 @Component
-public class MyManus extends ToolCallAgent {
+public class MyAgent extends ToolCallAgent {
 
-    public MyManus(ToolCallback[] allTools,
+    public MyAgent(ToolCallback[] allTools,
                    ToolCallbackProvider toolCallbackProvider,
                    ChatModel dashscopeChatModel,
                    @Qualifier("milvusVectorStore") VectorStore vectorStore,
@@ -24,7 +24,7 @@ public class MyManus extends ToolCallAgent {
         this.setVectorStore(vectorStore);
         this.setChatMemory(new RedisChatMemory(redisTemplate));
         String SYSTEM_PROMPT = """
-                你是MyManus，一个全能的人工智能助手，旨在解决用户提出的任何任务。您可以使用各种工具来有效地完成复杂的请求。
+                你是MyAgent，一个全能的人工智能助手，旨在解决用户提出的任何任务。您可以使用各种工具来有效地完成复杂的请求。
                 请全程使用中文，包括思考过程以及最终的结果输出。
                 """;
         this.setSystemPrompt(SYSTEM_PROMPT);

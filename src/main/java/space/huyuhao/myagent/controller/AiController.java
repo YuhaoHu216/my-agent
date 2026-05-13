@@ -15,7 +15,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.publisher.Flux;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import space.huyuhao.myagent.agent.MyManus;
+import space.huyuhao.myagent.agent.MyAgent;
 import space.huyuhao.myagent.app.MyApp;
 import space.huyuhao.myagent.context.UserContext;
 
@@ -113,8 +113,8 @@ public class AiController {
     @GetMapping("/manus/chat")
     public SseEmitter doChatWithManus(String message, String chatId) {
         UserContext.registerConversationUser(chatId);
-        MyManus myManus = new MyManus(allTools, toolCallbackProvider, dashscopeChatModel, vectorStore, redisTemplate);
-        return myManus.runStream(message, chatId);
+        MyAgent myAgent = new MyAgent(allTools, toolCallbackProvider, dashscopeChatModel, vectorStore, redisTemplate);
+        return myAgent.runStream(message, chatId);
     }
 
 

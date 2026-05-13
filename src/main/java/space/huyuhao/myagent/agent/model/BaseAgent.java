@@ -122,7 +122,7 @@ public abstract class BaseAgent {
         CompletableFuture.runAsync(() -> {
             try {
                 if (this.state != AgentState.IDLE) {
-                    emitter.send("错误：无法从状态运行代理: " + this.state);
+                    emitter.send("错误：无法从该状态运行代理: " + this.state);
                     emitter.complete();
                     return;
                 }
@@ -250,7 +250,7 @@ public abstract class BaseAgent {
                         .map(Document::getText)
                         .collect(Collectors.joining("\n\n---\n\n"));
                 String ragPrompt = "以下是与用户问题相关的参考资料：\n\n" + context
-                        + "\n\n请根据以上参考资料回答用户问题。如果答案不在参考资料中，请如实告知。";
+                        + "\n\n可以选择性结合这些参考资料回答用户问题。如果答案不在参考资料中，请如实告知。";
                 this.systemPrompt = ragPrompt + "\n\n---\n\n" + this.systemPrompt;
                 log.info("RAG 已注入 {} 条参考资料到系统提示词", docs.size());
             }

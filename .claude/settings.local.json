@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./mvnw compile *)",
+      "Bash(mvn compile *)",
+      "Bash(ls -la \"d:\\\\Code\\\\fullstack\\\\my-agent\\\\\")",
+      "Read(//d/Code/fullstack/**)",
+      "Bash(ls -la \"d:\\\\Code\\\\fullstack\\\\my-agent\\\\backend\\\\my-agent\\\\\")",
+      "Read(//d/Code/fullstack/my-agent/backend/**)",
+      "mcp__idea__get_file_text_by_path",
+      "mcp__idea__list_directory_tree",
+      "Bash(javap -classpath \"/c/Users/HYH/.m2/repository/org/springframework/ai/spring-ai-model/1.1.0/spring-ai-model-1.1.0.jar\" org.springframework.ai.model.function.FunctionCallback)",
+      "Bash(javap -cp \"/c/Users/HYH/.m2/repository/org/springframework/ai/spring-ai-model/1.1.0/spring-ai-model-1.1.0.jar\" org.springframework.ai.model.function.FunctionCallback)",
+      "Bash(javap *)",
+      "Bash(cd /tmp)",
+      "Bash(jar xf *)",
+      "Bash(javap -p /tmp/org/springframework/ai/chat/model/MessageAggregator.class)",
+      "Bash(rm -rf /tmp/org)",
+      "Bash(mkdir -p /tmp/msgagg)",
+      "Read(//tmp/**)"
+    ],
+    "additionalDirectories": [
+      "d:\\Code\\fullstack\\my-agent\\frontend\\my-agent-frontend\\src\\views",
+      "d:\\Code\\fullstack\\my-agent\\frontend\\my-agent-frontend\\src\\api"
+    ]
+  }
+}

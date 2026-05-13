@@ -1,16 +1,13 @@
 package space.huyuhao.myagent;
 
-import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
-import space.huyuhao.myagent.agent.MyManus;
+import space.huyuhao.myagent.agent.MyAgent;
 
 //@SpringBootTest
 class MyManusTest {
 
 //    @Resource
-    private MyManus myManus;
+    private MyAgent myAgent;
 
 //    @Test
     void run() {
@@ -20,7 +17,7 @@ class MyManusTest {
 //                将内容保存到文件中""";
         String userPrompt = """
                 总结一下我这个人,最后生成一个总结文件""";
-        String answer = myManus.run(userPrompt);
+        String answer = myAgent.run(userPrompt);
         Assertions.assertNotNull(answer);
     }
 }
