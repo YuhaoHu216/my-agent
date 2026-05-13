@@ -29,15 +29,22 @@ public class MyLoggerAdvisor implements CallAroundAdvisor, StreamAroundAdvisor {
     private AdvisedRequest before(AdvisedRequest request) {
         // 记录用户输入
         log.info(">>> AI Request: {}", request.userText());
-        
+
         // 记录系统提示词
         if (request.systemText() != null && !request.systemText().isEmpty()) {
             log.info(">>> System Prompt: {}", request.systemText());
         }
-        
+
+        List<FunctionCallback> functionCallbacks = request.functionCallbacks();
         // 工具的调用
-//        List<FunctionCallback> functionCallbacks = request.functionCallbacks();
-//        log.info(">>> Function Callbacks: {}", functionCallbacks);
+        if (!functionCallbacks.isEmpty()) {
+            List<String> toolNames = functionCallbacks.stream()
+                    .map(FunctionCallback::getName)
+                    .toList();
+            log.info(">>> 可用工具数量: {}, 工具列表: {}", toolNames.size(), toolNames);
+        } else {
+            log.info(">>> 无可用工具");
+        }
 
         return request;
     }
