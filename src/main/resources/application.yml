@@ -97,3 +97,5 @@ spring:
       client:
         stdio:
           servers-configuration: classpath:mcp-servers-linux.json
+milvus:
+  host: milvus

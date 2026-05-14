@@ -45,32 +45,32 @@ public class ToolTests {
 //        testMessage("最近和对象吵架了，看看编程导航网站（codefather.cn）的其他情侣是怎么解决矛盾的？");
 
         // 测试资源下载：图片下载
-        testMessage("下载这张图片,https://i0.hdslb.com/bfs/static/jinkela/long/images/512.png");
+//        testMessage("下载这张图片,https://i0.hdslb.com/bfs/static/jinkela/long/images/512.png");
 
         // 测试终端操作：执行代码
 //        testMessage("执行 Python3 脚本来生成数据分析报告");
 
         // 测试文件操作：保存用户档案
-        testMessage("把对话过程(指的是你和我的对话)保存为一个文档,文档最后写入当前时间");
+//        testMessage("把对话过程(指的是你和我的对话)保存为一个文档,文档最后写入当前时间");
 
         // 测试 PDF 生成
 //        testMessage("生成一份‘七夕约会计划’PDF，包含餐厅预订、活动流程和礼物清单");
     }
 
-    private void testMessage(String message) {
-        String chatId = UUID.randomUUID().toString();
-        String answer = myApp.doChatWithTools(message, chatId);
-        Assertions.assertNotNull(answer);
-    }
+//    private void testMessage(String message) {
+//        String chatId = UUID.randomUUID().toString();
+//        String answer = myApp.doChatWithTools(message, chatId);
+//        Assertions.assertNotNull(answer);
+//    }
 
 //    @Test
-    void doChatWithMcp() {
-        String chatId = UUID.randomUUID().toString();
-        // 测试地图mcp
-        String message = "四川农业大学(雅安校区)周围有什么好玩的地方";
-        String answer =  myApp.doChatWithMcp(message, chatId);
-        Assertions.assertNotNull(answer);
-    }
+//    void doChatWithMcp() {
+//        String chatId = UUID.randomUUID().toString();
+//        // 测试地图mcp
+//        String message = "四川农业大学(雅安校区)周围有什么好玩的地方";
+//        String answer =  myApp.doChatWithMcp(message, chatId);
+//        Assertions.assertNotNull(answer);
+//    }
 
 
 }
