@@ -27,7 +27,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # 只运行单个测试类
 ./mvnw test -Dtest=MyAgentApplicationTests
 
-# Docker Compose 启动所有依赖（MySQL, Redis, Milvus, Nginx 等）
+# Docker Compose 启动公共基础设施（MySQL + Redis）
+docker compose -f src/main/resources/docker/docker-compose-infra.yml up -d
+
+# Docker Compose 启动 Milvus 向量数据库栈（etcd + MinIO + Milvus + Attu）
+docker compose -f src/main/resources/docker/docker-compose-milvus.yml up -d
+
+# Docker Compose 启动应用层（后端 + Nginx）
 docker compose -f src/main/resources/docker/docker-compose.yml up -d
 ```
 
