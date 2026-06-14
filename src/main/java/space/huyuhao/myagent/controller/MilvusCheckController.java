@@ -5,6 +5,7 @@ import io.milvus.grpc.ShowCollectionsResponse;
 import io.milvus.param.R;
 import io.milvus.param.collection.ShowCollectionsParam;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,6 +20,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/milvus")
+@ConditionalOnProperty(name = "vector.store.type", havingValue = "milvus", matchIfMissing = true)
 public class MilvusCheckController {
 
     @Autowired

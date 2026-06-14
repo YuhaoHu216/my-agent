@@ -1,28 +1,21 @@
 package space.huyuhao.myagent.service.impl;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
-import io.milvus.client.MilvusServiceClient;
-import io.milvus.grpc.MutationResult;
-import io.milvus.param.R;
-import io.milvus.param.RpcStatus;
-import io.milvus.param.collection.LoadCollectionParam;
-import io.milvus.param.dml.DeleteParam;
-import io.milvus.param.dml.InsertParam;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import space.huyuhao.myagent.constant.MilvusConstants;
 import space.huyuhao.myagent.context.UserContext;
 import space.huyuhao.myagent.dto.*;
 import space.huyuhao.myagent.entity.UserDocument;
 import space.huyuhao.myagent.mapper.UserDocumentMapper;
 import space.huyuhao.myagent.rag.DocumentChunk;
 import space.huyuhao.myagent.service.*;
-import space.huyuhao.myagent.service.MilvusSearchService.SearchResult;
 
 import jakarta.annotation.PostConstruct;
 import org.springframework.core.io.Resource;
@@ -45,8 +38,7 @@ import java.util.stream.Collectors;
 public class UserDocumentServiceImpl implements UserDocumentService {
 
     private static final Logger logger = LoggerFactory.getLogger(UserDocumentServiceImpl.class);
-    private static final Gson gson = new Gson();
-    /** 需要分块+向量化插入Milvus的格式 */
+    /** 需要分块+向量化的格式 */
     private static final Set<String> VECTORIZABLE_EXTENSIONS = Set.of(".md");
     /** 仅存储到磁盘、不走向量数据库的格式 */
     private static final Set<String> STORABLE_EXTENSIONS = Set.of(".txt",".docx",".doc",".pdf",".vsdx");
@@ -61,10 +53,7 @@ public class UserDocumentServiceImpl implements UserDocumentService {
     private VectorEmbeddingService embeddingService;
 
     @Autowired
-    private MilvusServiceClient milvusClient;
-
-    @Autowired
-    private MilvusSearchService searchService;
+    private VectorStore vectorStore;
 
     @Value("${file.upload.path}")
     private String uploadPath;
@@ -116,7 +105,7 @@ public class UserDocumentServiceImpl implements UserDocumentService {
             int chunkCount = 0;
 
             if (isVectorizable) {
-                // 向量化流程：读取 → 分块 → 向量化 → 插入 Milvus
+                // 向量化流程：读取 → 分块 → 构建 Document → 通过 VectorStore 入库
                 String content = Files.readString(savedPath);
                 if (content.isBlank()) {
                     Files.deleteIfExists(savedPath);
@@ -129,7 +118,7 @@ public class UserDocumentServiceImpl implements UserDocumentService {
                     return ResponseResult.error("文件分块失败");
                 }
 
-                insertChunksToMilvus(userId, chunks, normalizedSource, originalName, extension);
+                addChunksToVectorStore(userId, chunks, normalizedSource, originalName, extension);
                 chunkCount = chunks.size();
             }
 
@@ -187,32 +176,36 @@ public class UserDocumentServiceImpl implements UserDocumentService {
         Long userId = UserContext.getUserId();
 
         int topK = request.getTopK() != null ? request.getTopK() : 10;
-        String filterExpr = "metadata[\"userId\"] == " + userId;
 
-        List<SearchResult> searchResults = searchService.searchSimilarDocuments(request.getQuery(), topK, filterExpr);
+        // 构建 Filter.Expression: metadata["userId"] == userId
+        Filter.Expression filter = new Filter.Expression(
+                Filter.ExpressionType.EQ,
+                new Filter.Key("userId"),
+                new Filter.Value(userId)
+        );
 
-        List<DocumentSearchResultDto> result = searchResults.stream().map(sr -> {
+        SearchRequest searchRequest = SearchRequest.builder()
+                .query(request.getQuery())
+                .topK(topK)
+                .filterExpression(filter)
+                .build();
+
+        List<Document> docs = vectorStore.similaritySearch(searchRequest);
+
+        List<DocumentSearchResultDto> result = docs.stream().map(doc -> {
             DocumentSearchResultDto dto = new DocumentSearchResultDto();
-            dto.setChunkId(sr.getId());
-            dto.setContent(sr.getContent());
-            dto.setScore(sr.getScore());
-
-            // 解析 metadata JSON
-            try {
-                JsonObject meta = gson.fromJson(sr.getMetadata(), JsonObject.class);
-                if (meta.has("_file_name")) {
-                    dto.setFileName(meta.get("_file_name").getAsString());
-                }
-                if (meta.has("chunkIndex")) {
-                    dto.setChunkIndex(meta.get("chunkIndex").getAsInt());
-                }
-                if (meta.has("totalChunks")) {
-                    dto.setTotalChunks(meta.get("totalChunks").getAsInt());
-                }
-            } catch (Exception e) {
-                logger.warn("解析搜索结果 metadata 失败: {}", sr.getMetadata());
+            dto.setChunkId(doc.getId());
+            dto.setContent(doc.getText());
+            dto.setScore(((Number) doc.getMetadata().getOrDefault("distance", 0.0f)).floatValue());
+            dto.setFileName((String) doc.getMetadata().get("_file_name"));
+            Object chunkIndexObj = doc.getMetadata().get("chunkIndex");
+            if (chunkIndexObj instanceof Number) {
+                dto.setChunkIndex(((Number) chunkIndexObj).intValue());
             }
-
+            Object totalChunksObj = doc.getMetadata().get("totalChunks");
+            if (totalChunksObj instanceof Number) {
+                dto.setTotalChunks(((Number) totalChunksObj).intValue());
+            }
             return dto;
         }).collect(Collectors.toList());
 
@@ -230,21 +223,18 @@ public class UserDocumentServiceImpl implements UserDocumentService {
         }
 
         try {
-            // 2. 仅向量化文档需要从 Milvus 删除
+            // 2. 仅向量化文档需要从向量库删除
             if (doc.getChunkCount() != null && doc.getChunkCount() > 0) {
-                loadCollection();
-                String expr = String.format("metadata[\"userId\"] == %d && metadata[\"_source\"] == \"%s\"",
-                        userId, doc.getFilePath());
-                DeleteParam deleteParam = DeleteParam.newBuilder()
-                        .withCollectionName(MilvusConstants.MILVUS_COLLECTION_NAME)
-                        .withExpr(expr)
-                        .build();
-                R<MutationResult> deleteResponse = milvusClient.delete(deleteParam);
-                if (deleteResponse.getStatus() != 0) {
-                    logger.warn("Milvus 删除警告: {}", deleteResponse.getMessage());
-                } else {
-                    logger.info("已从 Milvus 删除 {} 条向量记录", deleteResponse.getData().getDeleteCnt());
-                }
+                // 构建 Filter.Expression: metadata["userId"] == xxx AND metadata["_source"] == "xxx"
+                Filter.Expression filter = new Filter.Expression(
+                        Filter.ExpressionType.AND,
+                        new Filter.Expression(Filter.ExpressionType.EQ,
+                                new Filter.Key("userId"), new Filter.Value(userId)),
+                        new Filter.Expression(Filter.ExpressionType.EQ,
+                                new Filter.Key("_source"), new Filter.Value(doc.getFilePath()))
+                );
+                vectorStore.delete(filter);
+                logger.info("已从向量库删除文档相关向量: userId={}, filePath={}", userId, doc.getFilePath());
             }
 
             // 3. MySQL 软删除
@@ -315,18 +305,18 @@ public class UserDocumentServiceImpl implements UserDocumentService {
         }
     }
 
-    private void insertChunksToMilvus(Long userId, List<DocumentChunk> chunks,
-                                       String source, String fileName, String extension) {
-        loadCollection();
-
+    /**
+     * 将已分片的文档通过 VectorStore 接口写入向量库
+     */
+    private void addChunksToVectorStore(Long userId, List<DocumentChunk> chunks,
+                                        String source, String fileName, String extension) {
         int totalChunks = chunks.size();
+        List<Document> chunkDocs = new ArrayList<>();
+
         for (int i = 0; i < totalChunks; i++) {
             DocumentChunk chunk = chunks.get(i);
 
-            // 向量化
-            List<Float> vector = embeddingService.generateEmbedding(chunk.getContent());
-
-            // 构建 metadata
+            // 构建 metadata（会被 MilvusVectorStore.add() 复制到每个分片记录中）
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("userId", userId);
             metadata.put("_source", source);
@@ -342,35 +332,12 @@ public class UserDocumentServiceImpl implements UserDocumentService {
             String sourceKey = userId + "_" + source;
             String id = UUID.nameUUIDFromBytes((sourceKey + "_" + chunk.getChunkIndex()).getBytes()).toString();
 
-            // 插入 Milvus
-            List<InsertParam.Field> fields = new ArrayList<>();
-            fields.add(new InsertParam.Field("id", Collections.singletonList(id)));
-            fields.add(new InsertParam.Field("content", Collections.singletonList(chunk.getContent())));
-            fields.add(new InsertParam.Field("vector", Collections.singletonList(vector)));
-            fields.add(new InsertParam.Field("metadata", Collections.singletonList(gson.toJsonTree(metadata).getAsJsonObject())));
-
-            InsertParam insertParam = InsertParam.newBuilder()
-                    .withCollectionName(MilvusConstants.MILVUS_COLLECTION_NAME)
-                    .withFields(fields)
-                    .build();
-
-            R<MutationResult> insertResponse = milvusClient.insert(insertParam);
-            if (insertResponse.getStatus() != 0) {
-                throw new RuntimeException("插入 Milvus 失败(chunk " + chunk.getChunkIndex() + "): " + insertResponse.getMessage());
-            }
-
-            logger.debug("已插入 chunk {}/{}, id={}", chunk.getChunkIndex() + 1, totalChunks, id);
+            // 构建 Spring AI Document（包含 chunkIndex 标记为已分片）
+            Document doc = new Document(id, chunk.getContent(), metadata);
+            chunkDocs.add(doc);
         }
-    }
 
-    private void loadCollection() {
-        R<RpcStatus> response = milvusClient.loadCollection(
-                LoadCollectionParam.newBuilder()
-                        .withCollectionName(MilvusConstants.MILVUS_COLLECTION_NAME)
-                        .build()
-        );
-        if (response.getStatus() != 0 && response.getStatus() != 65535) {
-            logger.warn("加载 collection 警告: {}", response.getMessage());
-        }
+        vectorStore.add(chunkDocs);
+        logger.info("已通过 VectorStore 写入 {} 个分片: source={}", totalChunks, source);
     }
 }

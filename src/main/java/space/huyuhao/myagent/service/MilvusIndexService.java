@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import space.huyuhao.myagent.constant.MilvusConstants;
 import space.huyuhao.myagent.rag.DocumentChunk;
@@ -29,6 +30,7 @@ import java.util.*;
  * 负责读取文件、生成向量、存储到 Milvus
  */
 @Service
+@ConditionalOnProperty(name = "vector.store.type", havingValue = "milvus", matchIfMissing = true)
 public class MilvusIndexService {
 
     private static final Logger logger = LoggerFactory.getLogger(MilvusIndexService.class);

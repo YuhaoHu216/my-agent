@@ -81,6 +81,11 @@ milvus:
   database: default      # 数据库名
   timeout: 10000         # 连接超时（毫秒）
 
+# 向量数据库的选择
+vector:
+  store:
+    type: simple         # milvus | simple（内存向量库）
+
 # 为linux准备的
 ---
 spring:
@@ -99,3 +104,6 @@ spring:
           servers-configuration: classpath:mcp-servers-linux.json
 milvus:
   host: milvus
+vector:
+  store:
+    type: milvus

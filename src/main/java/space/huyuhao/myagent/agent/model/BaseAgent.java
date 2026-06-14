@@ -239,13 +239,23 @@ public abstract class BaseAgent {
      */
     private void injectRagContext(String userPrompt) {
         if (vectorStore == null) {
+            log.warn("RAG 跳过：vectorStore 未注入");
             return;
         }
         try {
+            log.info("RAG 开始检索: query=\"{}\", vectorStoreType={}", userPrompt, vectorStore.getClass().getSimpleName());
             List<Document> docs = vectorStore.similaritySearch(
                     SearchRequest.builder().query(userPrompt).topK(4).build()
             );
             if (docs != null && !docs.isEmpty()) {
+                // 打印检索到的文档信息，方便排查
+                for (int i = 0; i < docs.size(); i++) {
+                    Document doc = docs.get(i);
+                    log.info("  RAG[{}] source={}, fileName={}",
+                            i + 1,
+                            doc.getMetadata().getOrDefault("_source", "N/A"),
+                            doc.getMetadata().getOrDefault("_file_name", "N/A"));
+                }
                 String context = docs.stream()
                         .map(Document::getText)
                         .collect(Collectors.joining("\n\n---\n\n"));
@@ -253,9 +263,11 @@ public abstract class BaseAgent {
                         + "\n\n可以选择性结合这些参考资料回答用户问题。如果答案不在参考资料中，请如实告知。";
                 this.systemPrompt = ragPrompt + "\n\n---\n\n" + this.systemPrompt;
                 log.info("RAG 已注入 {} 条参考资料到系统提示词", docs.size());
+            } else {
+                log.warn("RAG 检索返回 0 条结果！query=\"{}\"，请检查向量库中是否有相关文档", userPrompt);
             }
         } catch (Exception e) {
-            log.warn("RAG 检索失败，继续不带上下文执行: {}", e.getMessage());
+            log.warn("RAG 检索失败，继续不带上下文执行: {}", e.getMessage(), e);
         }
     }
 

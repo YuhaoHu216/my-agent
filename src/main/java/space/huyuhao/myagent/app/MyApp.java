@@ -44,7 +44,7 @@ public class MyApp {
     private ToolCallbackProvider toolCallbackProvider;
 
     @Resource
-    private VectorStore milvusVectorStore;
+    private VectorStore vectorStore;
 
     /** 虚拟线程执行器，用于包装 MCP 等需要在流式线程中执行阻塞调用的工具 */
     private static final ExecutorService blockingExecutor = Executors.newVirtualThreadPerTaskExecutor();
@@ -69,7 +69,7 @@ public class MyApp {
                 .user(message)
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
                         .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
-                .advisors(new QuestionAnswerAdvisor(milvusVectorStore))
+                .advisors(new QuestionAnswerAdvisor(vectorStore))
                 .call()
                 .chatResponse();
         String content = response.getResult().getOutput().getText();
@@ -88,7 +88,7 @@ public class MyApp {
                 .user(message)
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
                         .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
-                .advisors(new QuestionAnswerAdvisor(milvusVectorStore))
+                .advisors(new QuestionAnswerAdvisor(vectorStore))
                 .call()
                 .entity(MyReport.class);
         log.info("myReport: {}", myReport);
@@ -107,7 +107,7 @@ public class MyApp {
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
                         .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
                 .tools(mergeToolCallbacks(allTools, mcpTools))
-                .advisors(new QuestionAnswerAdvisor(milvusVectorStore))
+                .advisors(new QuestionAnswerAdvisor(vectorStore))
                 .stream()
                 .content();
     }

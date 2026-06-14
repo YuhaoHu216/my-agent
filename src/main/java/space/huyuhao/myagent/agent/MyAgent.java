@@ -5,7 +5,6 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import space.huyuhao.myagent.advisor.MyLoggerAdvisor;
@@ -17,7 +16,7 @@ public class MyAgent extends ToolCallAgent {
     public MyAgent(ToolCallback[] allTools,
                    ToolCallbackProvider toolCallbackProvider,
                    ChatModel dashscopeChatModel,
-                   @Qualifier("milvusVectorStore") VectorStore vectorStore,
+                   VectorStore vectorStore,
                    RedisTemplate<String, byte[]> redisTemplate) {
         super(mergeToolCallbacks(allTools, (ToolCallback[]) toolCallbackProvider.getToolCallbacks()));
         this.setName("myManus");

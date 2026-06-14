@@ -53,20 +53,32 @@ public class MilvusVectorStore implements VectorStore {
 
         for (Document document : documents) {
             try {
-                List<DocumentChunk> chunks = chunkService.chunkDocument(
-                        document.getText(),
-                        document.getId() != null ? document.getId() : "unknown"
-                );
+                boolean isPreChunked = document.getMetadata() != null
+                        && document.getMetadata().containsKey("chunkIndex");
 
-                if (chunks.isEmpty()) {
-                    chunks = List.of(new DocumentChunk(
-                            document.getText(), 0, document.getText().length(), 0
-                    ));
-                }
-
-                for (DocumentChunk chunk : chunks) {
-                    List<Float> vector = embeddingService.generateEmbedding(chunk.getContent());
+                if (isPreChunked) {
+                    // 已分片文档：直接嵌入 + 插入，跳过 chunkService 避免二次分片
+                    List<Float> vector = embeddingService.generateEmbedding(document.getText());
+                    int chunkIndex = ((Number) document.getMetadata().get("chunkIndex")).intValue();
+                    DocumentChunk chunk = new DocumentChunk(document.getText(), 0, document.getText().length(), chunkIndex);
                     insertToMilvus(document, chunk, vector);
+                } else {
+                    // 未分片文档：正常分片流程
+                    List<DocumentChunk> chunks = chunkService.chunkDocument(
+                            document.getText(),
+                            document.getId() != null ? document.getId() : "unknown"
+                    );
+
+                    if (chunks.isEmpty()) {
+                        chunks = List.of(new DocumentChunk(
+                                document.getText(), 0, document.getText().length(), 0
+                        ));
+                    }
+
+                    for (DocumentChunk chunk : chunks) {
+                        List<Float> vector = embeddingService.generateEmbedding(chunk.getContent());
+                        insertToMilvus(document, chunk, vector);
+                    }
                 }
             } catch (Exception e) {
                 logger.error("添加文档失败: {}", document.getId(), e);
@@ -122,12 +134,20 @@ public class MilvusVectorStore implements VectorStore {
         String query = request.getQuery();
         int topK = request.getTopK() > 0 ? request.getTopK() : SearchRequest.DEFAULT_TOP_K;
         double threshold = request.getSimilarityThreshold();
+        Filter.Expression filterExpression = request.getFilterExpression();
 
-        logger.debug("向量搜索: query={}, topK={}, threshold={}", query, topK, threshold);
+        logger.debug("向量搜索: query={}, topK={}, threshold={}, filter={}", query, topK, threshold, filterExpression);
 
         try {
             loadCollection();
-            List<MilvusSearchService.SearchResult> results = searchService.searchSimilarDocuments(query, topK);
+
+            // 将 Filter.Expression 转为 Milvus 标量过滤表达式
+            String milvusFilter = null;
+            if (filterExpression != null) {
+                milvusFilter = convertFilterExpression(filterExpression);
+            }
+
+            List<MilvusSearchService.SearchResult> results = searchService.searchSimilarDocuments(query, topK, milvusFilter);
 
             List<Document> documents = results.stream()
                     .filter(r -> {

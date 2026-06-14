@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import space.huyuhao.myagent.rag.*;
@@ -15,12 +16,13 @@ import space.huyuhao.myagent.service.VectorEmbeddingService;
 import java.util.List;
 
 @Configuration
+@ConditionalOnProperty(name = "vector.store.type", havingValue = "milvus", matchIfMissing = true)
 public class MilvusVectorStoreConfig {
 
     private static final Logger logger = LoggerFactory.getLogger(MilvusVectorStoreConfig.class);
 
     @Bean
-    VectorStore milvusVectorStore(MilvusServiceClient milvusClient,
+    VectorStore vectorStore(MilvusServiceClient milvusClient,
                                   VectorEmbeddingService embeddingService,
                                   MilvusSearchService searchService,
                                   DocumentChunkService chunkService,
