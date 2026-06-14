@@ -25,8 +25,7 @@ public class MilvusVectorStoreConfig {
     VectorStore vectorStore(MilvusServiceClient milvusClient,
                                   VectorEmbeddingService embeddingService,
                                   MilvusSearchService searchService,
-                                  DocumentChunkService chunkService,
-                                  MyAppDocumentLoader documentLoader) {
+                                  DocumentChunkService chunkService) {
         MilvusVectorStore vectorStore = new MilvusVectorStore(milvusClient, embeddingService, searchService, chunkService);
 
 //        try {

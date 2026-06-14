@@ -21,7 +21,8 @@
       "Read(//c/Users/HYH/.m2/**)",
       "Read(//c/Users/HYH/.gradle/**)",
       "Read(//c/Users/**)",
-      "Bash(jar tf *)"
+      "Bash(jar tf *)",
+      "Bash(./mvnw clean *)"
     ],
     "additionalDirectories": [
       "d:\\Code\\fullstack\\my-agent\\frontend\\my-agent-frontend\\src\\views",

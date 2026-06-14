@@ -21,11 +21,11 @@ import java.util.stream.Collectors;
  * 用于诊断 SimpleVectorStore 中文档的上传、检索是否正常
  */
 @RestController
-@RequestMapping("/vector-store")
+@RequestMapping("/simple-vector-store")
 @ConditionalOnProperty(name = "vector.store.type", havingValue = "simple")
-public class VectorStoreDebugController {
+public class SimpleVectorStoreController {
 
-    private static final Logger log = LoggerFactory.getLogger(VectorStoreDebugController.class);
+    private static final Logger log = LoggerFactory.getLogger(SimpleVectorStoreController.class);
 
     @Autowired
     private VectorStore vectorStore;
