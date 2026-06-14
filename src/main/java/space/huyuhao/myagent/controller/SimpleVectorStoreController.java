@@ -8,6 +8,7 @@ import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import space.huyuhao.myagent.rag.LoggingSimpleVectorStore;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -37,9 +38,12 @@ public class SimpleVectorStoreController {
     public Map<String, Object> status() {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("vectorStoreType", vectorStore.getClass().getName());
-        result.put("isSimpleVectorStore", vectorStore instanceof SimpleVectorStore);
+        boolean isSimple = vectorStore instanceof SimpleVectorStore
+                || vectorStore instanceof LoggingSimpleVectorStore;
+        result.put("isSimpleVectorStore", isSimple);
 
-        if (vectorStore instanceof SimpleVectorStore svs) {
+        SimpleVectorStore svs = unwrapSimpleVectorStore();
+        if (svs != null) {
             try {
                 // 通过反射获取 store Map，避免受 protected 限制
                 var field = SimpleVectorStore.class.getDeclaredField("store");
@@ -125,7 +129,8 @@ public class SimpleVectorStoreController {
                                      @RequestParam(defaultValue = "20") int size) {
         Map<String, Object> result = new LinkedHashMap<>();
 
-        if (!(vectorStore instanceof SimpleVectorStore svs)) {
+        SimpleVectorStore svs = unwrapSimpleVectorStore();
+        if (svs == null) {
             result.put("error", "当前 VectorStore 不是 SimpleVectorStore，无法列出文档");
             return result;
         }
@@ -185,5 +190,18 @@ public class SimpleVectorStoreController {
         }
 
         return result;
+    }
+
+    /**
+     * 从 VectorStore 中提取原始 SimpleVectorStore（处理 LoggingSimpleVectorStore 包装的情况）
+     */
+    private SimpleVectorStore unwrapSimpleVectorStore() {
+        if (vectorStore instanceof SimpleVectorStore svs) {
+            return svs;
+        }
+        if (vectorStore instanceof LoggingSimpleVectorStore wrapper) {
+            return wrapper.getDelegate();
+        }
+        return null;
     }
 }

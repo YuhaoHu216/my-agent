@@ -16,6 +16,7 @@ import space.huyuhao.myagent.dto.*;
 import space.huyuhao.myagent.entity.UserDocument;
 import space.huyuhao.myagent.mapper.UserDocumentMapper;
 import space.huyuhao.myagent.rag.DocumentChunk;
+import space.huyuhao.myagent.rag.LoggingSimpleVectorStore;
 import space.huyuhao.myagent.service.*;
 
 import jakarta.annotation.PostConstruct;
@@ -226,7 +227,7 @@ public class UserDocumentServiceImpl implements UserDocumentService {
         try {
             // 2. 仅向量化文档需要从向量库删除
             if (doc.getChunkCount() != null && doc.getChunkCount() > 0) {
-                if (vectorStore instanceof SimpleVectorStore) {
+                if (vectorStore instanceof SimpleVectorStore || vectorStore instanceof LoggingSimpleVectorStore) {
                     // SimpleVectorStore 不支持 delete(Filter.Expression)，需通过反射直接操作内部 store Map
                     deleteFromSimpleVectorStore(userId, doc.getFilePath());
                 } else {
@@ -353,10 +354,11 @@ public class UserDocumentServiceImpl implements UserDocumentService {
      */
     private void deleteFromSimpleVectorStore(Long userId, String filePath) {
         try {
+            SimpleVectorStore svs = getSimpleVectorStore();
             var field = SimpleVectorStore.class.getDeclaredField("store");
             field.setAccessible(true);
             @SuppressWarnings("unchecked")
-            Map<String, ?> store = (Map<String, ?>) field.get(vectorStore);
+            Map<String, ?> store = (Map<String, ?>) field.get(svs);
 
             List<String> idsToRemove = new ArrayList<>();
             for (var entry : store.entrySet()) {
@@ -388,5 +390,18 @@ public class UserDocumentServiceImpl implements UserDocumentService {
             logger.error("SimpleVectorStore 删除向量失败: userId={}, filePath={}", userId, filePath, e);
             throw new RuntimeException("SimpleVectorStore 删除向量失败", e);
         }
+    }
+
+    /**
+     * 从 VectorStore 中提取原始 SimpleVectorStore（处理 LoggingSimpleVectorStore 包装的情况）
+     */
+    private SimpleVectorStore getSimpleVectorStore() {
+        if (vectorStore instanceof SimpleVectorStore svs) {
+            return svs;
+        }
+        if (vectorStore instanceof LoggingSimpleVectorStore wrapper) {
+            return wrapper.getDelegate();
+        }
+        throw new IllegalStateException("当前 VectorStore 不是 SimpleVectorStore 类型: " + vectorStore.getClass().getName());
     }
 }

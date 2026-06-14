@@ -11,6 +11,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import space.huyuhao.myagent.rag.DocumentChunk;
+import space.huyuhao.myagent.rag.LoggingSimpleVectorStore;
 import space.huyuhao.myagent.service.DocumentChunkService;
 
 import java.io.File;
@@ -43,7 +44,7 @@ public class SimpleVectorStoreConfig {
             simpleVectorStore.add(documents);
             log.info("SimpleVectorStore: 从 uploads 目录加载了 {} 个文档分片", documents.size());
         }
-        return simpleVectorStore;
+        return new LoggingSimpleVectorStore(simpleVectorStore);
     }
 
     /**
