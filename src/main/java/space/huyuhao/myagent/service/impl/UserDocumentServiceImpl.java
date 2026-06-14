@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -225,15 +226,20 @@ public class UserDocumentServiceImpl implements UserDocumentService {
         try {
             // 2. 仅向量化文档需要从向量库删除
             if (doc.getChunkCount() != null && doc.getChunkCount() > 0) {
-                // 构建 Filter.Expression: metadata["userId"] == xxx AND metadata["_source"] == "xxx"
-                Filter.Expression filter = new Filter.Expression(
-                        Filter.ExpressionType.AND,
-                        new Filter.Expression(Filter.ExpressionType.EQ,
-                                new Filter.Key("userId"), new Filter.Value(userId)),
-                        new Filter.Expression(Filter.ExpressionType.EQ,
-                                new Filter.Key("_source"), new Filter.Value(doc.getFilePath()))
-                );
-                vectorStore.delete(filter);
+                if (vectorStore instanceof SimpleVectorStore) {
+                    // SimpleVectorStore 不支持 delete(Filter.Expression)，需通过反射直接操作内部 store Map
+                    deleteFromSimpleVectorStore(userId, doc.getFilePath());
+                } else {
+                    // Milvus 等 VectorStore 支持 delete(Filter.Expression)
+                    Filter.Expression filter = new Filter.Expression(
+                            Filter.ExpressionType.AND,
+                            new Filter.Expression(Filter.ExpressionType.EQ,
+                                    new Filter.Key("userId"), new Filter.Value(userId)),
+                            new Filter.Expression(Filter.ExpressionType.EQ,
+                                    new Filter.Key("_source"), new Filter.Value(doc.getFilePath()))
+                    );
+                    vectorStore.delete(filter);
+                }
                 logger.info("已从向量库删除文档相关向量: userId={}, filePath={}", userId, doc.getFilePath());
             }
 
@@ -339,5 +345,48 @@ public class UserDocumentServiceImpl implements UserDocumentService {
 
         vectorStore.add(chunkDocs);
         logger.info("已通过 VectorStore 写入 {} 个分片: source={}", totalChunks, source);
+    }
+
+    /**
+     * SimpleVectorStore 不支持 delete(Filter.Expression)，需通过反射直接操作内部 store Map 删除匹配的文档。
+     * SimpleVectorStore 的 doDelete(Filter.Expression) 默认抛出 UnsupportedOperationException。
+     */
+    private void deleteFromSimpleVectorStore(Long userId, String filePath) {
+        try {
+            var field = SimpleVectorStore.class.getDeclaredField("store");
+            field.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            Map<String, ?> store = (Map<String, ?>) field.get(vectorStore);
+
+            List<String> idsToRemove = new ArrayList<>();
+            for (var entry : store.entrySet()) {
+                try {
+                    var content = entry.getValue();
+                    var getMetadata = content.getClass().getMethod("getMetadata");
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> metadata = (Map<String, Object>) getMetadata.invoke(content);
+
+                    Object metaUserId = metadata.get("userId");
+                    Object metaSource = metadata.get("_source");
+
+                    if (metaUserId != null && metaSource != null
+                            && String.valueOf(metaUserId).equals(String.valueOf(userId))
+                            && String.valueOf(metaSource).equals(filePath)) {
+                        idsToRemove.add(entry.getKey());
+                    }
+                } catch (Exception ignored) {
+                    // 跳过无法解析的条目
+                }
+            }
+
+            for (String id : idsToRemove) {
+                store.remove(id);
+            }
+            logger.info("SimpleVectorStore: 已删除 {} 条向量记录, userId={}, filePath={}",
+                    idsToRemove.size(), userId, filePath);
+        } catch (Exception e) {
+            logger.error("SimpleVectorStore 删除向量失败: userId={}, filePath={}", userId, filePath, e);
+            throw new RuntimeException("SimpleVectorStore 删除向量失败", e);
+        }
     }
 }

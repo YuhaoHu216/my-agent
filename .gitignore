@@ -31,3 +31,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+## 项目中不需要上传的文件
+/uploads

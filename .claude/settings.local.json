@@ -17,7 +17,11 @@
       "Bash(javap -p /tmp/org/springframework/ai/chat/model/MessageAggregator.class)",
       "Bash(rm -rf /tmp/org)",
       "Bash(mkdir -p /tmp/msgagg)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Read(//c/Users/HYH/.m2/**)",
+      "Read(//c/Users/HYH/.gradle/**)",
+      "Read(//c/Users/**)",
+      "Bash(jar tf *)"
     ],
     "additionalDirectories": [
       "d:\\Code\\fullstack\\my-agent\\frontend\\my-agent-frontend\\src\\views",
