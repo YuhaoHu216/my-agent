@@ -5,13 +5,13 @@
 
 spring:
   datasource:
-    url: jdbc:mysql://mysql:3306/my_agent?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    url: jdbc:mysql://8.156.66.24:3306/my_agent?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
     username: root
     password: Zf9@Qv7!Lm2Xc8$HpT8+rK!2pWq9@Vx6$Mn
     driver-class-name: com.mysql.cj.jdbc.Driver
   data:
     redis:
-      host: redis
+      host: 8.156.66.24
       port: 6379
       database: 0
       timeout: 3000ms
@@ -27,7 +27,7 @@ spring:
           servers-configuration: classpath:mcp-servers-linux.json  # Linux 用 npx
 
 milvus:
-  host: milvus
+  host: 8.156.66.24
   port: 19530
 
 # 向量数据库的选择 simple | milvus 等换内存更大的服务器在用milvus

@@ -30,7 +30,7 @@ milvus:
   host: localhost
   port: 19530
 
-# 向量数据库：开发环境使用内存向量库（无需外部依赖）
+# 向量数据库：开发环境使用内存向量库
 vector:
   store:
     type: simple
