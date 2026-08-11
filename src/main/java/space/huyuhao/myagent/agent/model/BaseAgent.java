@@ -122,12 +122,22 @@ public abstract class BaseAgent {
         CompletableFuture.runAsync(() -> {
             try {
                 if (this.state != AgentState.IDLE) {
-                    emitter.send("错误：无法从该状态运行代理: " + this.state);
+                    emitter.send(AgentStepEvent.builder()
+                            .type("error")
+                            .step(0)
+                            .content("错误：无法从该状态运行代理: " + this.state)
+                            .build()
+                            .toSseData());
                     emitter.complete();
                     return;
                 }
                 if (userPrompt.isEmpty()) {
-                    emitter.send("错误：不能使用空提示词运行代理");
+                    emitter.send(AgentStepEvent.builder()
+                            .type("error")
+                            .step(0)
+                            .content("错误：不能使用空提示词运行代理")
+                            .build()
+                            .toSseData());
                     emitter.complete();
                     return;
                 }
@@ -157,17 +167,37 @@ public abstract class BaseAgent {
                         currentStep = stepNumber;
                         log.info("Executing step " + stepNumber + "/" + maxSteps);
 
-                        // 单步执行
-                        String stepResult = step();
-                        String result = "Step " + stepNumber + ": " + stepResult + "\n";
+                        // 发送步骤开始事件
+                        emitter.send(AgentStepEvent.builder()
+                                .type("step_start")
+                                .step(stepNumber)
+                                .content("")
+                                .build()
+                                .toSseData());
 
-                        // 发送每一步的结果
-                        emitter.send(result);
+                        // 使用结构化事件执行步骤
+                        List<AgentStepEvent> stepEvents = executeStepWithEvents(stepNumber);
+                        for (AgentStepEvent event : stepEvents) {
+                            emitter.send(event.toSseData());
+                        }
+
+                        // 发送步骤结束事件
+                        emitter.send(AgentStepEvent.builder()
+                                .type("step_end")
+                                .step(stepNumber)
+                                .content("")
+                                .build()
+                                .toSseData());
                     }
                     // 检查是否超出步骤限制
                     if (currentStep >= maxSteps) {
                         state = AgentState.FINISHED;
-                        emitter.send("执行结束: 达到最大步骤 (" + maxSteps + ")");
+                        emitter.send(AgentStepEvent.builder()
+                                .type("max_steps")
+                                .step(currentStep)
+                                .content("执行结束: 达到最大步骤 (" + maxSteps + ")")
+                                .build()
+                                .toSseData());
                     }
                     // 正常完成
                     emitter.complete();
@@ -175,7 +205,12 @@ public abstract class BaseAgent {
                     state = AgentState.ERROR;
                     log.error("执行智能体失败", e);
                     try {
-                        emitter.send("执行错误: " + e.getMessage());
+                        emitter.send(AgentStepEvent.builder()
+                                .type("error")
+                                .step(currentStep)
+                                .content("执行错误: " + e.getMessage())
+                                .build()
+                                .toSseData());
                         emitter.complete();
                     } catch (Exception ex) {
                         emitter.completeWithError(ex);
@@ -233,6 +268,23 @@ public abstract class BaseAgent {
      * @return 步骤执行结果
      */
     public abstract String step();
+
+    /**
+     * 执行单个步骤并返回结构化事件列表（用于流式 SSE 推送）
+     * 默认实现：调用 step() 并包装为单一 think 事件
+     * ReActAgent 子类会覆写此方法以提供 think/act 分离的事件
+     *
+     * @param stepNumber 当前步骤编号
+     * @return 步骤事件列表
+     */
+    protected List<AgentStepEvent> executeStepWithEvents(int stepNumber) {
+        String stepResult = step();
+        return List.of(AgentStepEvent.builder()
+                .type("think")
+                .step(stepNumber)
+                .content(stepResult)
+                .build());
+    }
 
     /**
      * 注入 RAG 上下文到系统提示词

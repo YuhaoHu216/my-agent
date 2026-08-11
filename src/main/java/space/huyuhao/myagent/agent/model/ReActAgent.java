@@ -5,6 +5,8 @@ import lombok.EqualsAndHashCode;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -49,6 +51,112 @@ public abstract class ReActAgent extends BaseAgent {
             e.printStackTrace();
             return "步骤执行失败: " + e.getMessage();
         }
+    }
+
+    /**
+     * 执行单个步骤并返回结构化事件列表（用于流式 SSE 推送）
+     * 将思考过程和行动结果分离为独立事件，方便前端分开展示
+     *
+     * @param stepNumber 当前步骤编号
+     * @return 步骤事件列表
+     */
+    @Override
+    protected List<AgentStepEvent> executeStepWithEvents(int stepNumber) {
+        // 1. 思考阶段：调用 LLM 获取当前步骤的思考和工具选择
+        String thinkResult = think();
+
+        // 2. 获取工具调用信息（在 think() 之后获取，因为 think() 会设置 toolCallChatResponse）
+        String toolCallInfo = getToolCallInfo();
+
+        // 3. 没有任何工具调用 → 任务完成
+        if (toolCallInfo == null || toolCallInfo.isEmpty()) {
+            setState(AgentState.FINISHED);
+            String finishContent = "思考完成 - 无需行动";
+            if (this instanceof space.huyuhao.myagent.agent.ToolCallAgent tca) {
+                String finalAnswer = tca.getFinalAnswerText();
+                if (finalAnswer != null && !finalAnswer.isEmpty()) {
+                    finishContent = finalAnswer;
+                }
+            }
+            return List.of(AgentStepEvent.builder()
+                    .type("finish")
+                    .step(stepNumber)
+                    .content(finishContent)
+                    .build());
+        }
+
+        // 4. 只调用了 doTerminate → 当前 thinkResult 就是最终回答，不作为"思考过程"
+        if (isOnlyTerminateToolCall(toolCallInfo)) {
+            act(); // 执行 doTerminate，内部会设置 FINISHED 状态
+            String content = (thinkResult != null && !thinkResult.isEmpty()) ? thinkResult : "任务完成";
+            return List.of(AgentStepEvent.builder()
+                    .type("finish")
+                    .step(stepNumber)
+                    .content(content)
+                    .build());
+        }
+
+        // 5. 正常工具调用流程：有实质性工具需要执行
+        List<AgentStepEvent> events = new ArrayList<>();
+
+        // 思考文字可能为空（模型只输出工具调用），此时不发送空的 think 事件
+        if (thinkResult != null && !thinkResult.isEmpty()) {
+            events.add(AgentStepEvent.builder()
+                    .type("think")
+                    .step(stepNumber)
+                    .content(thinkResult)
+                    .build());
+        }
+
+        events.add(AgentStepEvent.builder()
+                .type("tool_call")
+                .step(stepNumber)
+                .content(toolCallInfo)
+                .build());
+
+        // 执行工具调用
+        String actResult = act();
+        events.add(AgentStepEvent.builder()
+                .type("tool_result")
+                .step(stepNumber)
+                .content(actResult)
+                .build());
+
+        return events;
+    }
+
+    /**
+     * 判断工具调用信息是否仅包含 doTerminate（无其他实质性工具）
+     */
+    private boolean isOnlyTerminateToolCall(String toolCallInfo) {
+        if (toolCallInfo == null || toolCallInfo.isEmpty()) {
+            return false;
+        }
+        try {
+            cn.hutool.json.JSONArray arr = cn.hutool.json.JSONUtil.parseArray(toolCallInfo);
+            if (arr.isEmpty()) {
+                return false;
+            }
+            for (int i = 0; i < arr.size(); i++) {
+                String name = arr.getJSONObject(i).getStr("name");
+                if (!"doTerminate".equals(name)) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 获取当前步骤的工具调用信息（JSON 格式）
+     * 默认返回空，由 ToolCallAgent 覆写以提供具体的工具名和参数
+     *
+     * @return 工具调用信息 JSON 字符串
+     */
+    public String getToolCallInfo() {
+        return "";
     }
 }
 

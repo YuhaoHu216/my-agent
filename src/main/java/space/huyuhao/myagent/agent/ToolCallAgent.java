@@ -1,6 +1,9 @@
 package space.huyuhao.myagent.agent;
 
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.json.JSONArray;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -36,6 +39,9 @@ public class ToolCallAgent extends ReActAgent {
     // 保存了工具调用信息的响应
     private ChatResponse toolCallChatResponse;
 
+    // LLM 最终回答文本（无工具调用时的最终回复）
+    private String finalAnswerText;
+
     // 工具调用管理者
     private final ToolCallingManager toolCallingManager;
 
@@ -61,7 +67,8 @@ public class ToolCallAgent extends ReActAgent {
     public String think() {
         List<Message> messageList = getMessageList();
         List<Message> promptMessages = new ArrayList<>(messageList);
-        if (getNextStepPrompt() != null && !getNextStepPrompt().isEmpty()) {
+        // 只在第一步注入 NEXT_STEP_PROMPT，避免每一步都追加导致 Agent 自我驱动循环
+        if (getCurrentStep() == 1 && getNextStepPrompt() != null && !getNextStepPrompt().isEmpty()) {
             promptMessages.add(new UserMessage(getNextStepPrompt()));
         }
         Prompt prompt = new Prompt(promptMessages, chatOptions);
@@ -90,6 +97,8 @@ public class ToolCallAgent extends ReActAgent {
             if (toolCallList.isEmpty()) {
                 // 只有不调用工具时，才记录助手消息
                 getMessageList().add(assistantMessage);
+                // 保存最终回答文本，供 executeStepWithEvents 中 finish 事件使用
+                this.finalAnswerText = (result != null && !result.isEmpty()) ? result : "任务完成";
                 return "";
             } else {
                 // 需要调用工具时，无需记录助手消息，因为调用工具时会自动记录
@@ -133,5 +142,38 @@ public class ToolCallAgent extends ReActAgent {
         return results;
     }
 
+    /**
+     * 覆写父类方法，从当前 ChatResponse 中提取工具调用信息
+     * 返回 JSON 数组：[{"name": "工具名", "arguments": "参数JSON"}]
+     */
+    @Override
+    public String getToolCallInfo() {
+        if (toolCallChatResponse == null
+                || !toolCallChatResponse.hasToolCalls()) {
+            return "";
+        }
+        AssistantMessage assistantMessage = toolCallChatResponse.getResult().getOutput();
+        List<AssistantMessage.ToolCall> toolCallList = assistantMessage.getToolCalls();
+        if (toolCallList == null || toolCallList.isEmpty()) {
+            return "";
+        }
+
+        // 使用 Hutool 构建工具调用信息的 JSON 数组
+        JSONArray toolCallsJson = JSONUtil.createArray();
+        for (AssistantMessage.ToolCall tc : toolCallList) {
+            JSONObject tcObj = JSONUtil.createObj();
+            tcObj.set("name", tc.name());
+            tcObj.set("arguments", tc.arguments());
+            toolCallsJson.add(tcObj);
+        }
+        return toolCallsJson.toString();
+    }
+
+    /**
+     * 获取 LLM 最终回答文本（无工具调用时）
+     */
+    public String getFinalAnswerText() {
+        return finalAnswerText;
+    }
 
 }

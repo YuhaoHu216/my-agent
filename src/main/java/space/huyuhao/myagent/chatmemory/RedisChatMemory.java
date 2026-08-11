@@ -24,7 +24,8 @@ public class RedisChatMemory implements ChatMemory {
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
-     * 只保留 role + text，去掉 metadata / finishReason 等冗余字段
+     * 只保留 role + text，去掉 metadata / finishReason 等冗余字段。
+     * 只持久化 USER 和 ASSISTANT 消息，TOOL 等内部消息会被过滤。
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record SlimMessage(String role, String text) {
@@ -32,11 +33,19 @@ public class RedisChatMemory implements ChatMemory {
             return "USER".equals(role) ? new UserMessage(text) : new AssistantMessage(text);
         }
 
+        /**
+         * 只保留 USER 和 ASSISTANT 类型的消息，过滤掉 TOOL 等内部消息。
+         * 返回 null 时调用方应跳过该消息。
+         */
         static SlimMessage from(Message msg) {
-            return new SlimMessage(
-                    msg.getMessageType() == MessageType.USER ? "USER" : "ASSISTANT",
-                    msg.getText()
-            );
+            MessageType type = msg.getMessageType();
+            if (type == MessageType.USER) {
+                return new SlimMessage("USER", msg.getText());
+            } else if (type == MessageType.ASSISTANT) {
+                return new SlimMessage("ASSISTANT", msg.getText());
+            }
+            // TOOL 等内部消息不持久化，避免破坏对话格式
+            return null;
         }
     }
 
@@ -62,7 +71,10 @@ public class RedisChatMemory implements ChatMemory {
         boolean isNew = existing == null;
         List<SlimMessage> all = isNew ? new ArrayList<>() : deserialize(existing);
         for (Message msg : messages) {
-            all.add(SlimMessage.from(msg));
+            SlimMessage slim = SlimMessage.from(msg);
+            if (slim != null) {
+                all.add(slim);
+            }
         }
         redisTemplate.opsForValue().set(key, serialize(all));
 

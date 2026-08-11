@@ -28,8 +28,9 @@ public class MyAgent extends ToolCallAgent {
                 """;
         this.setSystemPrompt(SYSTEM_PROMPT);
         String NEXT_STEP_PROMPT = """
-                根据用户需求，主动选择最合适的工具或工具组合。对于复杂的任务，您可以分解问题并逐步使用不同的工具来解决它。
-                在使用每个工具后，清楚地解释执行结果并建议下一步。如果您想在任何时候停止交互，请使用‘ doTerminate ’工具/函数调用。
+                如果用户没有提出具体需求（如只说了"你好"或没有明确指令），请直接友好地回复询问用户需要什么帮助，然后立即调用 doTerminate 结束，不要擅自猜测或执行任何其他工具。
+                只有在用户有明确需求时（如查天气、找地点、规划路线、下载文件等），才根据用户需求主动选择最合适的工具或工具组合。对于复杂的任务，您可以分解问题并逐步使用不同的工具来解决它。
+                在使用每个工具后，清楚地解释执行结果并建议下一步。
                 """;
         this.setNextStepPrompt(NEXT_STEP_PROMPT);
         this.setMaxSteps(20);
