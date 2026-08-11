@@ -28,7 +28,7 @@ public class RedisChatMemory implements ChatMemory {
      * 只持久化 USER 和 ASSISTANT 消息，TOOL 等内部消息会被过滤。
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record SlimMessage(String role, String text) {
+    public record SlimMessage(String role, String text, Long timestamp) {
         Message toMessage() {
             return "USER".equals(role) ? new UserMessage(text) : new AssistantMessage(text);
         }
@@ -36,13 +36,15 @@ public class RedisChatMemory implements ChatMemory {
         /**
          * 只保留 USER 和 ASSISTANT 类型的消息，过滤掉 TOOL 等内部消息。
          * 返回 null 时调用方应跳过该消息。
+         * 同时记录消息的持久化时间戳（毫秒）。
          */
         static SlimMessage from(Message msg) {
             MessageType type = msg.getMessageType();
+            Long now = System.currentTimeMillis();
             if (type == MessageType.USER) {
-                return new SlimMessage("USER", msg.getText());
+                return new SlimMessage("USER", msg.getText(), now);
             } else if (type == MessageType.ASSISTANT) {
-                return new SlimMessage("ASSISTANT", msg.getText());
+                return new SlimMessage("ASSISTANT", msg.getText(), now);
             }
             // TOOL 等内部消息不持久化，避免破坏对话格式
             return null;
@@ -268,9 +270,15 @@ public class RedisChatMemory implements ChatMemory {
                         lastMessageType = lastMessage.role();
                     }
                     
-                    // 获取过期时间作为最后活动时间
-                    Long expirationTime = getExpirationTime(key);
-                    
+                    // 优先使用最后一条消息的真实时间戳，旧数据回退到 TTL 推算
+                    Long lastActivityTime = null;
+                    if (!messages.isEmpty()) {
+                        lastActivityTime = messages.get(messages.size() - 1).timestamp();
+                    }
+                    if (lastActivityTime == null) {
+                        lastActivityTime = getExpirationTime(key);
+                    }
+
                     String conversationName = getConversationName(conversationId);
                     if (conversationName == null || conversationName.isEmpty()) {
                         conversationName = "未命名会话";
@@ -282,7 +290,7 @@ public class RedisChatMemory implements ChatMemory {
                             messages.size(),
                             lastMessagePreview,
                             lastMessageType,
-                            expirationTime
+                            lastActivityTime
                     ));
                 }
             } catch (Exception e) {
