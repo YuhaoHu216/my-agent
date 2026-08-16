@@ -4,7 +4,6 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
@@ -53,14 +52,12 @@ public class ToolCallAgent extends ReActAgent {
     // 禁用内置的工具调用机制，自己维护上下文
     private final ChatOptions chatOptions;
 
-    public ToolCallAgent(ToolCallback[] availableTools) {
+    public ToolCallAgent(ToolCallback[] availableTools, ChatOptions chatOptions) {
         super();
         this.availableTools = availableTools;
         this.toolCallingManager = ToolCallingManager.builder().build();
-        // 禁用 Spring AI 内置的工具调用机制，自己维护选项和消息上下文
-        this.chatOptions = DashScopeChatOptions.builder()
-                .withProxyToolCalls(true) // 这里设置为 true 自己维护工具调用上下文
-                .build();
+        // 禁用 Spring AI 内置的工具调用机制，由调用方注入 provider 专属的 ChatOptions
+        this.chatOptions = chatOptions;
     }
 
     /**

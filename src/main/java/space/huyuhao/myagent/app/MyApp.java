@@ -5,10 +5,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor;
-import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.data.redis.core.RedisTemplate;
 import space.huyuhao.myagent.chatmemory.RedisChatMemory;
 import space.huyuhao.myagent.config.PromptProperties;
+import space.huyuhao.myagent.model.ModelEnum;
+import space.huyuhao.myagent.model.ModelRouter;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.model.function.FunctionCallback;
 import org.springframework.ai.tool.ToolCallback;
@@ -20,7 +21,9 @@ import space.huyuhao.myagent.advisor.MyLoggerAdvisor;
 import space.huyuhao.myagent.context.UserContext;
 
 import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -32,7 +35,7 @@ import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvis
 @Slf4j
 public class MyApp {
 
-    private final ChatClient chatClient;
+    private final Map<ModelEnum, ChatClient> chatClients;
 
     private final RedisChatMemory redisChatMemory;
 
@@ -53,24 +56,28 @@ public class MyApp {
     private static final ExecutorService blockingExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
 
-    public MyApp(ChatModel dashscopeChatModel, RedisTemplate<String, byte[]> redisTemplate,
+    public MyApp(ModelRouter modelRouter, RedisTemplate<String, byte[]> redisTemplate,
                  PromptProperties promptProperties) {
         this.redisChatMemory = new RedisChatMemory(redisTemplate);
         this.systemPrompt = promptProperties.getApp().getSystem();
         this.reportSuffix = promptProperties.getApp().getReportSuffix();
-        // 构造方法中初始化chatClient
-        chatClient = ChatClient.builder(dashscopeChatModel)
-                .defaultSystem(systemPrompt)
-                .defaultAdvisors(
-                        new MessageChatMemoryAdvisor(redisChatMemory),
-                        new MyLoggerAdvisor()
-                )
-                .build();
+        // 为每个模型预构建 ChatClient，运行时按 model 选择
+        Map<ModelEnum, ChatClient> clients = new EnumMap<>(ModelEnum.class);
+        for (ModelEnum model : ModelEnum.values()) {
+            clients.put(model, ChatClient.builder(modelRouter.getChatModel(model))
+                    .defaultSystem(systemPrompt)
+                    .defaultAdvisors(
+                            new MessageChatMemoryAdvisor(redisChatMemory),
+                            new MyLoggerAdvisor()
+                    )
+                    .build());
+        }
+        this.chatClients = clients;
     }
 
     // 阻塞返回的调用
     public String doChat(String message, String chatId) {
-        ChatResponse response = chatClient
+        ChatResponse response = chatClients.get(ModelEnum.QWEN)
                 .prompt()
                 .user(message)
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
@@ -88,7 +95,7 @@ public class MyApp {
 
     // 限定返回格式的调用
     public MyReport doChatWithReport(String message, String chatId) {
-        MyReport myReport = chatClient
+        MyReport myReport = chatClients.get(ModelEnum.QWEN)
                 .prompt()
                 .system(systemPrompt + reportSuffix)
                 .user(message)
@@ -102,14 +109,14 @@ public class MyApp {
     }
 
     // 流式调用
-    public Flux<String> doChatByStream(String message, String chatId) {
+    public Flux<String> doChatByStream(String message, String chatId, ModelEnum model) {
         // 在请求线程上绑定 userId，解决 reactive 流切换到其他线程后 ThreadLocal 丢失的问题
         UserContext.registerConversationUser(chatId);
         // 预写用户消息，使新会话在回复完成前就出现在左侧历史列表（与 Agent 模式一致）
         redisChatMemory.addUserMessage(chatId, message);
         // 将 MCP 工具包装为可安全阻塞的方式，避免在 Netty 线程上 block()
         FunctionCallback[] mcpTools = wrapForBlocking(toolCallbackProvider.getToolCallbacks());
-        return chatClient
+        return chatClients.get(model)
                 .prompt()
                 .user(message)
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)

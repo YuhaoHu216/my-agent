@@ -139,6 +139,13 @@
             <artifactId>spring-ai-pgvector-store</artifactId>
             <version>1.0.0-M6</version>
         </dependency>
+<!--        DeepSeek (OpenAI 兼容 API) 接入，用 core 模块避免与阿里 starter 自动装配冲突-->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-openai</artifactId>
+            <version>1.0.0-M6</version>
+        </dependency>
+
 <!--        MCP 依赖-->
         <dependency>
             <groupId>org.springframework.ai</groupId>

@@ -1,7 +1,7 @@
 package space.huyuhao.myagent.controller;
 
 import jakarta.annotation.Resource;
-import org.springframework.ai.chat.model.ChatModel;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.publisher.Flux;
@@ -17,9 +18,12 @@ import space.huyuhao.myagent.agent.MyAgent;
 import space.huyuhao.myagent.app.MyApp;
 import space.huyuhao.myagent.config.PromptProperties;
 import space.huyuhao.myagent.context.UserContext;
+import space.huyuhao.myagent.model.ModelEnum;
+import space.huyuhao.myagent.model.ModelRouter;
 
 import java.io.IOException;
 
+@Slf4j
 @RestController
 @RequestMapping("/ai")
 public class AiController {
@@ -31,7 +35,7 @@ public class AiController {
     private ToolCallback[] allTools;
 
     @Resource
-    private ChatModel dashscopeChatModel;
+    private ModelRouter modelRouter;
 
     @Resource
     private ToolCallbackProvider toolCallbackProvider;
@@ -57,8 +61,12 @@ public class AiController {
      * @return
      */
     @GetMapping(value = "/my_app/chat/sse/one", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<String> doChatWithMyAppSSEOne(String message, String chatId) {
-        return myApp.doChatByStream(message, chatId);
+    public Flux<String> doChatWithMyAppSSEOne(String message, String chatId,
+                                              @RequestParam(defaultValue = "qwen") String model) {
+        ModelEnum modelEnum = ModelEnum.fromCode(model);
+        log.info("[Chat] 使用模型: code={}, provider={}, modelName={}",
+                modelEnum.getCode(), modelEnum.getProvider(), modelRouter.getModelName(modelEnum));
+        return myApp.doChatByStream(message, chatId, modelEnum);
     }
 
     /**
@@ -69,7 +77,7 @@ public class AiController {
      */
     @GetMapping(value = "/my_app/chat/sse/two", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> doChatWithMyAppSSETwo(String message, String chatId) {
-        return myApp.doChatByStream(message, chatId)
+        return myApp.doChatByStream(message, chatId, ModelEnum.QWEN)
                 .map(chunk -> ServerSentEvent.<String>builder()
                         .data(chunk)
                         .build());
@@ -86,7 +94,7 @@ public class AiController {
         // 创建一个超时时间较长的 SseEmitter
         SseEmitter emitter = new SseEmitter(180000L); // 3分钟超时
         // 获取 Flux 数据流并直接订阅
-        myApp.doChatByStream(message, chatId)
+        myApp.doChatByStream(message, chatId, ModelEnum.QWEN)
                 .subscribe(
                         // 处理每条消息
                         chunk -> {
@@ -112,9 +120,14 @@ public class AiController {
      * @param chatId  会话ID，用于加载/保存持久化记忆
      */
     @GetMapping("/manus/chat")
-    public SseEmitter doChatWithManus(String message, String chatId) {
+    public SseEmitter doChatWithManus(String message, String chatId,
+                                      @RequestParam(defaultValue = "qwen") String model) {
+        ModelEnum modelEnum = ModelEnum.fromCode(model);
+        log.info("[Agent] 使用模型: code={}, provider={}, modelName={}",
+                modelEnum.getCode(), modelEnum.getProvider(), modelRouter.getModelName(modelEnum));
         UserContext.registerConversationUser(chatId);
-        MyAgent myAgent = new MyAgent(allTools, toolCallbackProvider, dashscopeChatModel, vectorStore, redisTemplate, promptProperties);
+        MyAgent myAgent = MyAgent.create(allTools, toolCallbackProvider, modelRouter,
+                modelEnum, vectorStore, redisTemplate, promptProperties);
         return myAgent.runStream(message, chatId);
     }
 

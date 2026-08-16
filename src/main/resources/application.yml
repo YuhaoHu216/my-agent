@@ -15,6 +15,12 @@ spring:
       chat:
         options:
           timeout: 180000
+    deepseek:
+      api-key: ${DEEPSEEK_API_KEY}
+      base-url: https://api.deepseek.com
+      chat:
+        options:
+          model: ${DEEPSEEK_MODEL:deepseek-v4-pro}
     mcp:
       client:
         enabled: true
