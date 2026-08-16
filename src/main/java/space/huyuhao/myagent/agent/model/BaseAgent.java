@@ -38,6 +38,11 @@ public abstract class BaseAgent {
     private String systemPrompt;
     private String nextStepPrompt;
 
+    // RAG 上下文注入模板（由子类从配置注入）
+    private String ragPrefix;
+    private String ragSuffix;
+    private String ragSeparator;
+
     // 状态
     private AgentState state = AgentState.IDLE;
 
@@ -427,9 +432,8 @@ public abstract class BaseAgent {
                 String context = docs.stream()
                         .map(Document::getText)
                         .collect(Collectors.joining("\n\n---\n\n"));
-                String ragPrompt = "以下是与用户问题相关的参考资料：\n\n" + context
-                        + "\n\n可以选择性结合这些参考资料回答用户问题。如果答案不在参考资料中，请如实告知。";
-                this.systemPrompt = ragPrompt + "\n\n---\n\n" + this.systemPrompt;
+                String ragPrompt = ragPrefix + "\n\n" + context + "\n\n" + ragSuffix;
+                this.systemPrompt = ragPrompt + "\n\n" + ragSeparator + "\n\n" + this.systemPrompt;
                 log.info("RAG 已注入 {} 条参考资料到系统提示词", docs.size());
             } else {
                 log.warn("RAG 检索返回 0 条结果！query=\"{}\"，请检查向量库中是否有相关文档", userPrompt);

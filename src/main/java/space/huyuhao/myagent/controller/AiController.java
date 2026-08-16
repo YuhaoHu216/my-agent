@@ -15,6 +15,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.publisher.Flux;
 import space.huyuhao.myagent.agent.MyAgent;
 import space.huyuhao.myagent.app.MyApp;
+import space.huyuhao.myagent.config.PromptProperties;
 import space.huyuhao.myagent.context.UserContext;
 
 import java.io.IOException;
@@ -40,6 +41,9 @@ public class AiController {
 
     @Resource
     private RedisTemplate<String, byte[]> redisTemplate;
+
+    @Resource
+    private PromptProperties promptProperties;
 
     @GetMapping("/my_app/chat/sync")
     public String doChatWithMyAppSync(String message, String chatId) {
@@ -110,7 +114,7 @@ public class AiController {
     @GetMapping("/manus/chat")
     public SseEmitter doChatWithManus(String message, String chatId) {
         UserContext.registerConversationUser(chatId);
-        MyAgent myAgent = new MyAgent(allTools, toolCallbackProvider, dashscopeChatModel, vectorStore, redisTemplate);
+        MyAgent myAgent = new MyAgent(allTools, toolCallbackProvider, dashscopeChatModel, vectorStore, redisTemplate, promptProperties);
         return myAgent.runStream(message, chatId);
     }
 

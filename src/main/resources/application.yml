@@ -3,6 +3,8 @@
 # ============================================
 
 spring:
+  config:
+    import: prompt.yml
   profiles:
     active: dev           # 默认激活开发环境
   application:

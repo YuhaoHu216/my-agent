@@ -9,6 +9,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import space.huyuhao.myagent.advisor.MyLoggerAdvisor;
 import space.huyuhao.myagent.chatmemory.RedisChatMemory;
+import space.huyuhao.myagent.config.PromptProperties;
 
 @Component
 public class MyAgent extends ToolCallAgent {
@@ -17,23 +18,17 @@ public class MyAgent extends ToolCallAgent {
                    ToolCallbackProvider toolCallbackProvider,
                    ChatModel dashscopeChatModel,
                    VectorStore vectorStore,
-                   RedisTemplate<String, byte[]> redisTemplate) {
+                   RedisTemplate<String, byte[]> redisTemplate,
+                   PromptProperties promptProperties) {
         super(mergeToolCallbacks(allTools, (ToolCallback[]) toolCallbackProvider.getToolCallbacks()));
         this.setName("myManus");
         this.setVectorStore(vectorStore);
         this.setChatMemory(new RedisChatMemory(redisTemplate));
-        String SYSTEM_PROMPT = """
-                你是MyAgent，一个全能的人工智能助手，旨在解决用户提出的任何任务。您可以使用各种工具来有效地完成复杂的请求。
-                请全程使用中文，包括思考过程以及最终的结果输出。
-                最终的结果输出请使用 Markdown 格式进行排版（如标题、列表、代码块、表格等）。
-                """;
-        this.setSystemPrompt(SYSTEM_PROMPT);
-        String NEXT_STEP_PROMPT = """
-                如果用户没有提出具体需求（如只说了"你好"或没有明确指令），请直接友好地回复询问用户需要什么帮助，然后立即调用 doTerminate 结束，不要擅自猜测或执行任何其他工具。
-                只有在用户有明确需求时（如查天气、找地点、规划路线、下载文件等），才根据用户需求主动选择最合适的工具或工具组合。对于复杂的任务，您可以分解问题并逐步使用不同的工具来解决它。
-                在使用每个工具后，清楚地解释执行结果并建议下一步。
-                """;
-        this.setNextStepPrompt(NEXT_STEP_PROMPT);
+        this.setSystemPrompt(promptProperties.getAgent().getSystem());
+        this.setNextStepPrompt(promptProperties.getAgent().getNextStep());
+        this.setRagPrefix(promptProperties.getRag().getPrefix());
+        this.setRagSuffix(promptProperties.getRag().getSuffix());
+        this.setRagSeparator(promptProperties.getRag().getSeparator());
         this.setMaxSteps(20);
         // 初始化客户端
         ChatClient chatClient = ChatClient.builder(dashscopeChatModel)

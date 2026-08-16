@@ -8,6 +8,7 @@ import org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.data.redis.core.RedisTemplate;
 import space.huyuhao.myagent.chatmemory.RedisChatMemory;
+import space.huyuhao.myagent.config.PromptProperties;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.model.function.FunctionCallback;
 import org.springframework.ai.tool.ToolCallback;
@@ -35,9 +36,9 @@ public class MyApp {
 
     private final RedisChatMemory redisChatMemory;
 
-    private static final String SYSTEM_PROMPT = "你是一个助理,你的master叫 Guyue,你需要回答他的一些问题,他不喜欢长篇大论+" +
-                                                "回答的时候可以加一些颜文字,比如 o((>ω< ))o,不要用emoji图标+" +
-                                                "回答请使用 Markdown 格式进行排版（如标题、列表、代码块、表格等）";
+    private final String systemPrompt;
+
+    private final String reportSuffix;
 
     @Resource
     private ToolCallback[] allTools;
@@ -52,11 +53,14 @@ public class MyApp {
     private static final ExecutorService blockingExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
 
-    public MyApp(ChatModel dashscopeChatModel, RedisTemplate<String, byte[]> redisTemplate) {
+    public MyApp(ChatModel dashscopeChatModel, RedisTemplate<String, byte[]> redisTemplate,
+                 PromptProperties promptProperties) {
         this.redisChatMemory = new RedisChatMemory(redisTemplate);
+        this.systemPrompt = promptProperties.getApp().getSystem();
+        this.reportSuffix = promptProperties.getApp().getReportSuffix();
         // 构造方法中初始化chatClient
         chatClient = ChatClient.builder(dashscopeChatModel)
-                .defaultSystem(SYSTEM_PROMPT)
+                .defaultSystem(systemPrompt)
                 .defaultAdvisors(
                         new MessageChatMemoryAdvisor(redisChatMemory),
                         new MyLoggerAdvisor()
@@ -86,7 +90,7 @@ public class MyApp {
     public MyReport doChatWithReport(String message, String chatId) {
         MyReport myReport = chatClient
                 .prompt()
-                .system(SYSTEM_PROMPT + "每次对话后都要生成报告，标题为{用户名}的报告，内容为结果列表")
+                .system(systemPrompt + reportSuffix)
                 .user(message)
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
                         .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
