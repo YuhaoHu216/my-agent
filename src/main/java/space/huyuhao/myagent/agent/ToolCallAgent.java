@@ -182,7 +182,7 @@ public class ToolCallAgent extends ReActAgent {
         if (terminateToolCalled) {
             setState(AgentState.FINISHED);
         }
-        log.info(results);
+        log.info(truncateToolResult(results));
         return results;
     }
 

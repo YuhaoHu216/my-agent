@@ -127,12 +127,12 @@ public abstract class ReActAgent extends BaseAgent {
                 .content(toolCallInfo)
                 .build());
 
-        // 执行工具调用
+        // 执行工具调用（工具结果过长时截断，避免前端实时展示与持久化刷屏）
         String actResult = act();
         events.add(AgentStepEvent.builder()
                 .type("tool_result")
                 .step(stepNumber)
-                .content(actResult)
+                .content(truncateToolResult(actResult))
                 .build());
 
         return events;

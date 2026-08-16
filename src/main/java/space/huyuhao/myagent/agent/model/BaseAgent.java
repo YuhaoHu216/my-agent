@@ -10,11 +10,14 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import space.huyuhao.myagent.chatmemory.RedisChatMemory;
 
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -42,6 +45,9 @@ public abstract class BaseAgent {
     // 执行控制
     private int maxSteps = 10;
     private int currentStep = 0;
+
+    // 工具结果持久化最大长度，超出部分截断
+    private static final int MAX_TOOL_RESULT_LENGTH = 100;
 
     // LLM
     private ChatClient chatClient;
@@ -162,6 +168,8 @@ public abstract class BaseAgent {
                 // 记录当前用户消息
                 messageList.add(new UserMessage(userPrompt));
                 int savedIndex = messageList.size() - 1; // 从用户消息开始算新消息
+                // 累积本轮全部结构化事件，用于持久化
+                List<AgentStepEvent> allEvents = new ArrayList<>();
 
                 try {
                     for (int i = 0; i < maxSteps && state != AgentState.FINISHED; i++) {
@@ -193,6 +201,7 @@ public abstract class BaseAgent {
 
                         // 使用结构化事件执行步骤
                         List<AgentStepEvent> stepEvents = executeStepWithEvents(stepNumber, onToken);
+                        allEvents.addAll(stepEvents);
                         for (AgentStepEvent event : stepEvents) {
                             emitter.send(event.toSseData());
                         }
@@ -208,12 +217,13 @@ public abstract class BaseAgent {
                     // 检查是否超出步骤限制
                     if (currentStep >= maxSteps) {
                         state = AgentState.FINISHED;
-                        emitter.send(AgentStepEvent.builder()
+                        AgentStepEvent maxStepsEvent = AgentStepEvent.builder()
                                 .type("max_steps")
                                 .step(currentStep)
                                 .content("执行结束: 达到最大步骤 (" + maxSteps + ")")
-                                .build()
-                                .toSseData());
+                                .build();
+                        allEvents.add(maxStepsEvent);
+                        emitter.send(maxStepsEvent.toSseData());
                     }
                     // 正常完成
                     emitter.complete();
@@ -221,19 +231,20 @@ public abstract class BaseAgent {
                     state = AgentState.ERROR;
                     log.error("执行智能体失败", e);
                     try {
-                        emitter.send(AgentStepEvent.builder()
+                        AgentStepEvent errorEvent = AgentStepEvent.builder()
                                 .type("error")
                                 .step(currentStep)
                                 .content("执行错误: " + e.getMessage())
-                                .build()
-                                .toSseData());
+                                .build();
+                        allEvents.add(errorEvent);
+                        emitter.send(errorEvent.toSseData());
                         emitter.complete();
                     } catch (Exception ex) {
                         emitter.completeWithError(ex);
                     }
                 } finally {
                     // 将本轮新增的消息持久化到 ChatMemory
-                    persistNewMessages(savedIndex);
+                    persistNewMessages(savedIndex, userPrompt, allEvents);
                     // 清理资源
                     this.cleanup();
                 }
@@ -263,18 +274,74 @@ public abstract class BaseAgent {
     /**
      * 将 messageList 中从 startIndex 开始的新消息保存到持久化 ChatMemory
      */
-    private void persistNewMessages(int startIndex) {
+    private void persistNewMessages(int startIndex, String userPrompt, List<AgentStepEvent> allEvents) {
         if (chatMemory == null || conversationId == null) {
             return;
         }
         if (startIndex >= messageList.size()) {
             return;
         }
+
+        // RedisChatMemory：持久化结构化事件（思考/工具调用/工具结果/最终回答），刷新后还原单气泡
+        if (chatMemory instanceof RedisChatMemory redisMemory) {
+            String finalAnswer = extractFinalAnswer(allEvents);
+            List<Map<String, Object>> events = new ArrayList<>();
+            if (allEvents != null) {
+                for (AgentStepEvent event : allEvents) {
+                    events.add(eventToMap(event));
+                }
+            }
+            redisMemory.addAgentExchange(conversationId, userPrompt, finalAnswer, events);
+            log.info("保存 Agent 结构化消息到会话记忆，事件数: {}", events.size());
+            return;
+        }
+
+        // 其他 ChatMemory：回退纯文本持久化
         List<Message> newMessages = new ArrayList<>(messageList.subList(startIndex, messageList.size()));
         if (!newMessages.isEmpty()) {
             chatMemory.add(conversationId, newMessages);
             log.info("保存了 {} 条新消息到会话记忆", newMessages.size());
         }
+    }
+
+    /**
+     * 提取最终回答：优先取最后一个 finish 事件 content；无 finish 时回退非空占位。
+     * 占位保证 text 非空，前端 v-if="message.content" 才能命中结构化渲染分支。
+     */
+    private String extractFinalAnswer(List<AgentStepEvent> allEvents) {
+        if (allEvents != null) {
+            for (int i = allEvents.size() - 1; i >= 0; i--) {
+                AgentStepEvent event = allEvents.get(i);
+                if ("finish".equals(event.type()) && event.content() != null && !event.content().isBlank()) {
+                    return event.content();
+                }
+            }
+        }
+        return "已完成";
+    }
+
+    /**
+     * 截断过长的工具结果，避免前端实时展示过长 / 控制台日志刷屏。
+     */
+    protected String truncateToolResult(String content) {
+        if (content == null) {
+            return null;
+        }
+        if (content.length() <= MAX_TOOL_RESULT_LENGTH) {
+            return content;
+        }
+        return content.substring(0, MAX_TOOL_RESULT_LENGTH) + "...";
+    }
+
+    /**
+     * 将结构化事件转换为 {type, step, content} Map，供 Redis 持久化。
+     */
+    private Map<String, Object> eventToMap(AgentStepEvent event) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("type", event.type());
+        map.put("step", event.step());
+        map.put("content", event.content());
+        return map;
     }
 
 

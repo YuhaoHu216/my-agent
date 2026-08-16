@@ -12,6 +12,7 @@ import space.huyuhao.myagent.context.UserContext;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -28,7 +29,7 @@ public class RedisChatMemory implements ChatMemory {
      * 只持久化 USER 和 ASSISTANT 消息，TOOL 等内部消息会被过滤。
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record SlimMessage(String role, String text, Long timestamp) {
+    public record SlimMessage(String role, String text, Long timestamp, List<Map<String, Object>> events) {
         Message toMessage() {
             return "USER".equals(role) ? new UserMessage(text) : new AssistantMessage(text);
         }
@@ -37,14 +38,15 @@ public class RedisChatMemory implements ChatMemory {
          * 只保留 USER 和 ASSISTANT 类型的消息，过滤掉 TOOL 等内部消息。
          * 返回 null 时调用方应跳过该消息。
          * 同时记录消息的持久化时间戳（毫秒）。
+         * events 仅用于前端历史还原结构化事件（思考/工具调用/工具结果），纯文本路径传 null。
          */
         static SlimMessage from(Message msg) {
             MessageType type = msg.getMessageType();
             Long now = System.currentTimeMillis();
             if (type == MessageType.USER) {
-                return new SlimMessage("USER", msg.getText(), now);
+                return new SlimMessage("USER", msg.getText(), now, null);
             } else if (type == MessageType.ASSISTANT) {
-                return new SlimMessage("ASSISTANT", msg.getText(), now);
+                return new SlimMessage("ASSISTANT", msg.getText(), now, null);
             }
             // TOOL 等内部消息不持久化，避免破坏对话格式
             return null;
@@ -85,6 +87,28 @@ public class RedisChatMemory implements ChatMemory {
             if (firstName != null) {
                 setConversationName(conversationId, truncateName(firstName));
             }
+        }
+    }
+
+    /**
+     * 将 Agent 一次回复的完整结构化事件（思考/工具调用/工具结果/最终回答）
+     * 持久化为一条 USER + 一条 ASSISTANT(带 events)，避免刷新后一条回复退化成多个气泡。
+     */
+    public void addAgentExchange(String conversationId,
+                                 String userText,
+                                 String assistantText,
+                                 List<Map<String, Object>> events) {
+        Long userId = resolveUserId(conversationId);
+        String key = KEY_PREFIX + userId + ":" + conversationId;
+        byte[] existing = redisTemplate.opsForValue().get(key);
+        boolean isNew = existing == null;
+        List<SlimMessage> all = isNew ? new ArrayList<>() : deserialize(existing);
+        all.add(new SlimMessage("USER", userText, System.currentTimeMillis(), null));
+        all.add(new SlimMessage("ASSISTANT", assistantText, System.currentTimeMillis(), events));
+        redisTemplate.opsForValue().set(key, serialize(all));
+
+        if (isNew && userText != null && !userText.isBlank()) {
+            setConversationName(conversationId, truncateName(userText));
         }
     }
 
