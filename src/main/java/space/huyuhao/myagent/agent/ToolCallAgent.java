@@ -13,6 +13,7 @@ import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.model.tool.ToolCallingManager;
@@ -20,9 +21,13 @@ import org.springframework.ai.model.tool.ToolExecutionResult;
 import org.springframework.ai.tool.ToolCallback;
 import space.huyuhao.myagent.agent.model.AgentState;
 import space.huyuhao.myagent.agent.model.ReActAgent;
+import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -59,12 +64,25 @@ public class ToolCallAgent extends ReActAgent {
     }
 
     /**
-     * 处理当前状态并决定下一步行动
+     * 处理当前状态并决定下一步行动（非流式，兼容 run()/step() 路径）
      *
      * @return 是否需要执行行动
      */
     @Override
     public String think() {
+        return think(null);
+    }
+
+    /**
+     * 处理当前状态并决定下一步行动（流式）
+     * <p>
+     * 使用 {@code .stream()} 逐块获取响应，将文本分块实时推送给 {@code onToken}（用于最终回答逐字流式）。
+     * 流结束后聚合出完整文本与工具调用，供 act() / getToolCallInfo() 使用。
+     *
+     * @param onToken 文本分块回调（可为 null，表示不流式推送）
+     * @return 是否需要执行行动
+     */
+    public String think(Consumer<String> onToken) {
         List<Message> messageList = getMessageList();
         List<Message> promptMessages = new ArrayList<>(messageList);
         // 只在第一步注入 NEXT_STEP_PROMPT，避免每一步都追加导致 Agent 自我驱动循环
@@ -73,18 +91,44 @@ public class ToolCallAgent extends ReActAgent {
         }
         Prompt prompt = new Prompt(promptMessages, chatOptions);
         try {
-            // 获取带工具选项的响应
-            ChatResponse chatResponse = getChatClient().prompt(prompt)
+            // 流式获取带工具选项的响应
+            Flux<ChatResponse> responseFlux = getChatClient().prompt(prompt)
                     .system(getSystemPrompt())
                     .tools(availableTools)
-                    .call()
+                    .stream()
                     .chatResponse();
-            // 记录响应，用于 Act
-            this.toolCallChatResponse = chatResponse;
-            AssistantMessage assistantMessage = chatResponse.getResult().getOutput();
+
+            StringBuilder fullText = new StringBuilder();
+            AtomicReference<ChatResponse> toolCallResponse = new AtomicReference<>();
+
+            // 逐块消费：实时将文本分块推送给 onToken，并记录包含工具调用的响应
+            responseFlux
+                    .doOnNext(chunk -> {
+                        AssistantMessage chunkMessage = chunk.getResult().getOutput();
+                        String text = chunkMessage.getText();
+                        if (text != null && !text.isEmpty()) {
+                            fullText.append(text);
+                            if (onToken != null) {
+                                onToken.accept(text);
+                            }
+                        }
+                        List<AssistantMessage.ToolCall> chunkToolCalls = chunkMessage.getToolCalls();
+                        if (chunkToolCalls != null && !chunkToolCalls.isEmpty()) {
+                            toolCallResponse.set(chunk);
+                        }
+                    })
+                    .blockLast();
+
+            String result = fullText.toString();
+            List<AssistantMessage.ToolCall> toolCallList = toolCallResponse.get() != null
+                    ? toolCallResponse.get().getResult().getOutput().getToolCalls()
+                    : List.of();
+
+            // 组装完整的助手消息与响应，供 act() / getToolCallInfo() 使用
+            AssistantMessage assistantMessage = new AssistantMessage(result, Map.of(), toolCallList);
+            this.toolCallChatResponse = new ChatResponse(List.of(new Generation(assistantMessage)));
+
             // 输出提示信息
-            String result = assistantMessage.getText();
-            List<AssistantMessage.ToolCall> toolCallList = assistantMessage.getToolCalls();
             log.info(getName() + "的思考: " + result);
             log.info(getName() + "选择了 " + toolCallList.size() + " 个工具来使用");
             String toolCallInfo = toolCallList.stream()

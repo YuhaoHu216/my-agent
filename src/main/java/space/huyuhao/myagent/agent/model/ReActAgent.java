@@ -8,6 +8,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 /**
  * ReAct (Reasoning and Acting) 模式的代理抽象类
@@ -23,6 +24,17 @@ public abstract class ReActAgent extends BaseAgent {
      * @return 是否需要执行行动，true表示需要执行，false表示不需要执行
      */
     public abstract String think();
+
+    /**
+     * 处理当前状态并决定下一步行动（流式版本）
+     * 默认实现忽略 onToken，直接调用非流式 think()；ToolCallAgent 子类会覆写以支持逐字流式。
+     *
+     * @param onToken 文本分块回调（可为 null）
+     * @return 是否需要执行行动
+     */
+    public String think(Consumer<String> onToken) {
+        return think();
+    }
 
     /**
      * 执行决定的行动
@@ -58,12 +70,13 @@ public abstract class ReActAgent extends BaseAgent {
      * 将思考过程和行动结果分离为独立事件，方便前端分开展示
      *
      * @param stepNumber 当前步骤编号
+     * @param onToken    文本分块回调，用于最终回答的逐字流式推送
      * @return 步骤事件列表
      */
     @Override
-    protected List<AgentStepEvent> executeStepWithEvents(int stepNumber) {
-        // 1. 思考阶段：调用 LLM 获取当前步骤的思考和工具选择
-        String thinkResult = think();
+    protected List<AgentStepEvent> executeStepWithEvents(int stepNumber, Consumer<String> onToken) {
+        // 1. 思考阶段：调用 LLM 获取当前步骤的思考和工具选择（文本分块实时推送给 onToken）
+        String thinkResult = think(onToken);
 
         // 2. 获取工具调用信息（在 think() 之后获取，因为 think() 会设置 toolCallChatResponse）
         String toolCallInfo = getToolCallInfo();

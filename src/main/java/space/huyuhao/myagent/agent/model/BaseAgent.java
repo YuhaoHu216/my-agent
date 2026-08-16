@@ -12,9 +12,11 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -175,8 +177,22 @@ public abstract class BaseAgent {
                                 .build()
                                 .toSseData());
 
+                        // 文本分块回调：将最终回答逐字流式推送给前端（answer 事件）
+                        Consumer<String> onToken = chunk -> {
+                            try {
+                                emitter.send(AgentStepEvent.builder()
+                                        .type("answer")
+                                        .step(stepNumber)
+                                        .content(chunk)
+                                        .build()
+                                        .toSseData());
+                            } catch (IOException e) {
+                                emitter.completeWithError(e);
+                            }
+                        };
+
                         // 使用结构化事件执行步骤
-                        List<AgentStepEvent> stepEvents = executeStepWithEvents(stepNumber);
+                        List<AgentStepEvent> stepEvents = executeStepWithEvents(stepNumber, onToken);
                         for (AgentStepEvent event : stepEvents) {
                             emitter.send(event.toSseData());
                         }
@@ -275,9 +291,10 @@ public abstract class BaseAgent {
      * ReActAgent 子类会覆写此方法以提供 think/act 分离的事件
      *
      * @param stepNumber 当前步骤编号
+     * @param onToken    文本分块回调（默认实现忽略）
      * @return 步骤事件列表
      */
-    protected List<AgentStepEvent> executeStepWithEvents(int stepNumber) {
+    protected List<AgentStepEvent> executeStepWithEvents(int stepNumber, Consumer<String> onToken) {
         String stepResult = step();
         return List.of(AgentStepEvent.builder()
                 .type("think")

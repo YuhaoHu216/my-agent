@@ -11,6 +11,7 @@ import lombok.Builder;
  * - think: 思考过程（LLM 推理输出、工具选择分析）
  * - tool_call: 选中的工具名称和参数（JSON 数组）
  * - tool_result: 工具执行结果
+ * - answer: 最终回答的流式分块（逐字推送，前端累积拼接）
  * - finish: 最终回答（无需工具调用时，Agent 完成任务）
  * - error: 执行出错
  * - max_steps: 达到最大步骤限制
