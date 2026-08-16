@@ -76,9 +76,17 @@ public class RedisChatMemory implements ChatMemory {
         List<SlimMessage> all = isNew ? new ArrayList<>() : deserialize(existing);
         for (Message msg : messages) {
             SlimMessage slim = SlimMessage.from(msg);
-            if (slim != null) {
-                all.add(slim);
+            if (slim == null) {
+                continue;
             }
+            // 预写去重：避免与 addUserMessage 预写的同一 USER 重复落库
+            if ("USER".equals(slim.role()) && !all.isEmpty()) {
+                SlimMessage last = all.get(all.size() - 1);
+                if ("USER".equals(last.role()) && slim.text() != null && slim.text().equals(last.text())) {
+                    continue;
+                }
+            }
+            all.add(slim);
         }
         redisTemplate.opsForValue().set(key, serialize(all));
 
@@ -91,25 +99,39 @@ public class RedisChatMemory implements ChatMemory {
     }
 
     /**
-     * 将 Agent 一次回复的完整结构化事件（思考/工具调用/工具结果/最终回答）
-     * 持久化为一条 USER + 一条 ASSISTANT(带 events)，避免刷新后一条回复退化成多个气泡。
+     * 追加一条用户消息；若会话此前为空则同时设置会话名称（截取自用户首条消息）。
+     * Agent 在开始执行时即调用，使会话在回复完成前就出现在列表。
      */
-    public void addAgentExchange(String conversationId,
-                                 String userText,
-                                 String assistantText,
-                                 List<Map<String, Object>> events) {
+    public void addUserMessage(String conversationId, String userText) {
         Long userId = resolveUserId(conversationId);
+        if (userId == null) {
+            return;
+        }
         String key = KEY_PREFIX + userId + ":" + conversationId;
         byte[] existing = redisTemplate.opsForValue().get(key);
         boolean isNew = existing == null;
         List<SlimMessage> all = isNew ? new ArrayList<>() : deserialize(existing);
         all.add(new SlimMessage("USER", userText, System.currentTimeMillis(), null));
-        all.add(new SlimMessage("ASSISTANT", assistantText, System.currentTimeMillis(), events));
         redisTemplate.opsForValue().set(key, serialize(all));
 
         if (isNew && userText != null && !userText.isBlank()) {
             setConversationName(conversationId, truncateName(userText));
         }
+    }
+
+    /**
+     * 追加一条助手消息（携带 Agent 结构化事件），用于整轮执行结束后落库完整回答。
+     */
+    public void addAssistantMessage(String conversationId, String assistantText, List<Map<String, Object>> events) {
+        Long userId = resolveUserId(conversationId);
+        if (userId == null) {
+            return;
+        }
+        String key = KEY_PREFIX + userId + ":" + conversationId;
+        byte[] existing = redisTemplate.opsForValue().get(key);
+        List<SlimMessage> all = existing == null ? new ArrayList<>() : deserialize(existing);
+        all.add(new SlimMessage("ASSISTANT", assistantText, System.currentTimeMillis(), events));
+        redisTemplate.opsForValue().set(key, serialize(all));
     }
 
     private String findFirstUserMessageText(List<Message> messages) {

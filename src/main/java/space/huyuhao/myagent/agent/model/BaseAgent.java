@@ -13,7 +13,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import space.huyuhao.myagent.chatmemory.RedisChatMemory;
 
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -130,23 +129,23 @@ public abstract class BaseAgent {
         CompletableFuture.runAsync(() -> {
             try {
                 if (this.state != AgentState.IDLE) {
-                    emitter.send(AgentStepEvent.builder()
+                    safeSend(emitter, AgentStepEvent.builder()
                             .type("error")
                             .step(0)
                             .content("错误：无法从该状态运行代理: " + this.state)
                             .build()
                             .toSseData());
-                    emitter.complete();
+                    safeComplete(emitter);
                     return;
                 }
                 if (userPrompt.isEmpty()) {
-                    emitter.send(AgentStepEvent.builder()
+                    safeSend(emitter, AgentStepEvent.builder()
                             .type("error")
                             .step(0)
                             .content("错误：不能使用空提示词运行代理")
                             .build()
                             .toSseData());
-                    emitter.complete();
+                    safeComplete(emitter);
                     return;
                 }
 
@@ -168,6 +167,8 @@ public abstract class BaseAgent {
                 // 记录当前用户消息
                 messageList.add(new UserMessage(userPrompt));
                 int savedIndex = messageList.size() - 1; // 从用户消息开始算新消息
+                // 立即将用户消息预写入持久化记忆，使会话在回复完成前就出现在列表
+                persistUserMessage(userPrompt);
                 // 累积本轮全部结构化事件，用于持久化
                 List<AgentStepEvent> allEvents = new ArrayList<>();
 
@@ -178,7 +179,7 @@ public abstract class BaseAgent {
                         log.info("Executing step " + stepNumber + "/" + maxSteps);
 
                         // 发送步骤开始事件
-                        emitter.send(AgentStepEvent.builder()
+                        safeSend(emitter, AgentStepEvent.builder()
                                 .type("step_start")
                                 .step(stepNumber)
                                 .content("")
@@ -186,28 +187,22 @@ public abstract class BaseAgent {
                                 .toSseData());
 
                         // 文本分块回调：将最终回答逐字流式推送给前端（answer 事件）
-                        Consumer<String> onToken = chunk -> {
-                            try {
-                                emitter.send(AgentStepEvent.builder()
-                                        .type("answer")
-                                        .step(stepNumber)
-                                        .content(chunk)
-                                        .build()
-                                        .toSseData());
-                            } catch (IOException e) {
-                                emitter.completeWithError(e);
-                            }
-                        };
+                        Consumer<String> onToken = chunk -> safeSend(emitter, AgentStepEvent.builder()
+                                .type("answer")
+                                .step(stepNumber)
+                                .content(chunk)
+                                .build()
+                                .toSseData());
 
                         // 使用结构化事件执行步骤
                         List<AgentStepEvent> stepEvents = executeStepWithEvents(stepNumber, onToken);
                         allEvents.addAll(stepEvents);
                         for (AgentStepEvent event : stepEvents) {
-                            emitter.send(event.toSseData());
+                            safeSend(emitter, event.toSseData());
                         }
 
                         // 发送步骤结束事件
-                        emitter.send(AgentStepEvent.builder()
+                        safeSend(emitter, AgentStepEvent.builder()
                                 .type("step_end")
                                 .step(stepNumber)
                                 .content("")
@@ -223,28 +218,24 @@ public abstract class BaseAgent {
                                 .content("执行结束: 达到最大步骤 (" + maxSteps + ")")
                                 .build();
                         allEvents.add(maxStepsEvent);
-                        emitter.send(maxStepsEvent.toSseData());
+                        safeSend(emitter, maxStepsEvent.toSseData());
                     }
                     // 正常完成
-                    emitter.complete();
+                    safeComplete(emitter);
                 } catch (Exception e) {
                     state = AgentState.ERROR;
                     log.error("执行智能体失败", e);
-                    try {
-                        AgentStepEvent errorEvent = AgentStepEvent.builder()
-                                .type("error")
-                                .step(currentStep)
-                                .content("执行错误: " + e.getMessage())
-                                .build();
-                        allEvents.add(errorEvent);
-                        emitter.send(errorEvent.toSseData());
-                        emitter.complete();
-                    } catch (Exception ex) {
-                        emitter.completeWithError(ex);
-                    }
+                    AgentStepEvent errorEvent = AgentStepEvent.builder()
+                            .type("error")
+                            .step(currentStep)
+                            .content("执行错误: " + e.getMessage())
+                            .build();
+                    allEvents.add(errorEvent);
+                    safeSend(emitter, errorEvent.toSseData());
+                    safeComplete(emitter);
                 } finally {
                     // 将本轮新增的消息持久化到 ChatMemory
-                    persistNewMessages(savedIndex, userPrompt, allEvents);
+                    persistNewMessages(savedIndex, allEvents);
                     // 清理资源
                     this.cleanup();
                 }
@@ -272,9 +263,27 @@ public abstract class BaseAgent {
     }
 
     /**
+     * 在 Agent 开始执行时立即将用户消息写入持久化记忆，
+     * 使会话在回复完成前就出现在列表、并供前端识别“进行中”。
+     */
+    private void persistUserMessage(String userText) {
+        if (chatMemory == null || conversationId == null) {
+            return;
+        }
+        try {
+            if (chatMemory instanceof RedisChatMemory redisMemory) {
+                redisMemory.addUserMessage(conversationId, userText);
+            }
+        } catch (Exception e) {
+            // 预写入失败不阻断 Agent 执行，最终结果仍在 persistNewMessages 中落库
+            log.warn("预写入用户消息失败: {}", e.getMessage());
+        }
+    }
+
+    /**
      * 将 messageList 中从 startIndex 开始的新消息保存到持久化 ChatMemory
      */
-    private void persistNewMessages(int startIndex, String userPrompt, List<AgentStepEvent> allEvents) {
+    private void persistNewMessages(int startIndex, List<AgentStepEvent> allEvents) {
         if (chatMemory == null || conversationId == null) {
             return;
         }
@@ -282,7 +291,7 @@ public abstract class BaseAgent {
             return;
         }
 
-        // RedisChatMemory：持久化结构化事件（思考/工具调用/工具结果/最终回答），刷新后还原单气泡
+        // RedisChatMemory：仅追加 ASSISTANT（USER 已在执行开始时预写入），携带结构化事件还原单气泡
         if (chatMemory instanceof RedisChatMemory redisMemory) {
             String finalAnswer = extractFinalAnswer(allEvents);
             List<Map<String, Object>> events = new ArrayList<>();
@@ -291,7 +300,7 @@ public abstract class BaseAgent {
                     events.add(eventToMap(event));
                 }
             }
-            redisMemory.addAgentExchange(conversationId, userPrompt, finalAnswer, events);
+            redisMemory.addAssistantMessage(conversationId, finalAnswer, events);
             log.info("保存 Agent 结构化消息到会话记忆，事件数: {}", events.size());
             return;
         }
@@ -301,6 +310,29 @@ public abstract class BaseAgent {
         if (!newMessages.isEmpty()) {
             chatMemory.add(conversationId, newMessages);
             log.info("保存了 {} 条新消息到会话记忆", newMessages.size());
+        }
+    }
+
+    /**
+     * 安全发送 SSE 数据：客户端断开后发送会抛异常，此处吞掉，
+     * 让 Agent 在后台继续执行并最终持久化完整结果。
+     */
+    private void safeSend(SseEmitter emitter, String data) {
+        try {
+            emitter.send(data);
+        } catch (Exception e) {
+            log.debug("SSE 发送失败（客户端可能已断开）: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 安全完成 SSE：客户端断开后 complete 也可能抛异常，吞掉。
+     */
+    private void safeComplete(SseEmitter emitter) {
+        try {
+            emitter.complete();
+        } catch (Exception e) {
+            log.debug("SSE 完成失败（客户端可能已断开）: {}", e.getMessage());
         }
     }
 

@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor;
-import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.data.redis.core.RedisTemplate;
 import space.huyuhao.myagent.chatmemory.RedisChatMemory;
@@ -34,6 +33,8 @@ public class MyApp {
 
     private final ChatClient chatClient;
 
+    private final RedisChatMemory redisChatMemory;
+
     private static final String SYSTEM_PROMPT = "你是一个助理,你的master叫 Guyue,你需要回答他的一些问题,他不喜欢长篇大论+" +
                                                 "回答的时候可以加一些颜文字,比如 o((>ω< ))o,不要用emoji图标+" +
                                                 "回答请使用 Markdown 格式进行排版（如标题、列表、代码块、表格等）";
@@ -52,12 +53,12 @@ public class MyApp {
 
 
     public MyApp(ChatModel dashscopeChatModel, RedisTemplate<String, byte[]> redisTemplate) {
-        ChatMemory chatMemory = new RedisChatMemory(redisTemplate);
+        this.redisChatMemory = new RedisChatMemory(redisTemplate);
         // 构造方法中初始化chatClient
         chatClient = ChatClient.builder(dashscopeChatModel)
                 .defaultSystem(SYSTEM_PROMPT)
                 .defaultAdvisors(
-                        new MessageChatMemoryAdvisor(chatMemory),
+                        new MessageChatMemoryAdvisor(redisChatMemory),
                         new MyLoggerAdvisor()
                 )
                 .build();
@@ -100,6 +101,8 @@ public class MyApp {
     public Flux<String> doChatByStream(String message, String chatId) {
         // 在请求线程上绑定 userId，解决 reactive 流切换到其他线程后 ThreadLocal 丢失的问题
         UserContext.registerConversationUser(chatId);
+        // 预写用户消息，使新会话在回复完成前就出现在左侧历史列表（与 Agent 模式一致）
+        redisChatMemory.addUserMessage(chatId, message);
         // 将 MCP 工具包装为可安全阻塞的方式，避免在 Netty 线程上 block()
         FunctionCallback[] mcpTools = wrapForBlocking(toolCallbackProvider.getToolCallbacks());
         return chatClient
