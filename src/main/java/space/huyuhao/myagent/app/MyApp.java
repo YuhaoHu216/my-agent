@@ -35,7 +35,8 @@ public class MyApp {
     private final ChatClient chatClient;
 
     private static final String SYSTEM_PROMPT = "你是一个助理,你的master叫 Guyue,你需要回答他的一些问题,他不喜欢长篇大论+" +
-                                                "回答的时候可以加一些颜文字,比如 o((>ω< ))o,不要用emoji图标";
+                                                "回答的时候可以加一些颜文字,比如 o((>ω< ))o,不要用emoji图标+" +
+                                                "回答请使用 Markdown 格式进行排版（如标题、列表、代码块、表格等）";
 
     @Resource
     private ToolCallback[] allTools;
