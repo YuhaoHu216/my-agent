@@ -54,3 +54,32 @@ CREATE TABLE user_mcp_server (
     UNIQUE KEY uk_user_server_name (user_id, server_name),
     INDEX idx_user_id (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户MCP服务配置表';
+
+-- 用户自定义 LLM 配置表（每个供应商一个 api-key，key 下可配置多个模型）
+DROP TABLE IF EXISTS user_llm_config;
+
+CREATE TABLE user_llm_config (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    user_id BIGINT NOT NULL COMMENT '用户ID',
+    provider VARCHAR(20) NOT NULL COMMENT '提供商: DASHSCOPE-通义千问, DEEPSEEK-DeepSeek',
+    api_key VARCHAR(255) NOT NULL COMMENT 'API Key(明文存储，接口返回时脱敏)',
+    enabled TINYINT DEFAULT 1 COMMENT '是否启用: 0-禁用, 1-启用',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_user_provider (user_id, provider),
+    INDEX idx_user_id (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户LLM供应商配置表';
+
+-- 用户 LLM 模型配置表（每个供应商下多个模型名）
+DROP TABLE IF EXISTS user_llm_model;
+
+CREATE TABLE user_llm_model (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    user_id BIGINT NOT NULL COMMENT '用户ID',
+    provider VARCHAR(20) NOT NULL COMMENT '提供商: DASHSCOPE-通义千问, DEEPSEEK-DeepSeek',
+    model_name VARCHAR(100) NOT NULL COMMENT '模型名称',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_user_provider_model (user_id, provider, model_name),
+    INDEX idx_user_id (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户LLM模型配置表';

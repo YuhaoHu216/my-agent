@@ -35,11 +35,6 @@ public class ModelRouter {
         return chatModels.get(model);
     }
 
-    /** 返回模型实际名称（用于日志），未显式配置时回退为 "default" */
-    public String getModelName(ModelEnum model) {
-        return resolveModelName(chatModels.get(model));
-    }
-
     private static String resolveModelName(ChatModel chatModel) {
         String modelName = chatModel.getDefaultOptions().getModel();
         return modelName != null ? modelName : "default";

@@ -2,6 +2,8 @@ package space.huyuhao.myagent.controller;
 
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -14,12 +16,15 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.publisher.Flux;
 import space.huyuhao.myagent.agent.MyAgent;
+import space.huyuhao.myagent.agent.model.AgentStepEvent;
 import space.huyuhao.myagent.app.MyApp;
 import space.huyuhao.myagent.config.PromptProperties;
 import space.huyuhao.myagent.context.UserContext;
+import space.huyuhao.myagent.exception.LlmNotConfiguredException;
 import space.huyuhao.myagent.mcp.UserMcpToolManager;
 import space.huyuhao.myagent.model.ModelEnum;
 import space.huyuhao.myagent.model.ModelRouter;
+import space.huyuhao.myagent.model.UserChatModelManager;
 
 import java.io.IOException;
 
@@ -39,6 +44,9 @@ public class AiController {
 
     @Resource
     private UserMcpToolManager userMcpToolManager;
+
+    @Resource
+    private UserChatModelManager userChatModelManager;
 
     @Resource
     private VectorStore vectorStore;
@@ -62,11 +70,11 @@ public class AiController {
      */
     @GetMapping(value = "/my_app/chat/sse/one", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> doChatWithMyAppSSEOne(String message, String chatId,
-                                              @RequestParam(defaultValue = "qwen") String model) {
+                                              @RequestParam(defaultValue = "qwen") String model,
+                                              @RequestParam(required = false) String modelName) {
         ModelEnum modelEnum = ModelEnum.fromCode(model);
-        log.info("[Chat] 使用模型: code={}, provider={}, modelName={}",
-                modelEnum.getCode(), modelEnum.getProvider(), modelRouter.getModelName(modelEnum));
-        return myApp.doChatByStream(message, chatId, modelEnum);
+        log.info("[Chat] 使用模型: code={}, provider={}", modelEnum.getCode(), modelEnum.getProvider());
+        return myApp.doChatByStream(message, chatId, modelEnum, modelName);
     }
 
     /**
@@ -76,8 +84,9 @@ public class AiController {
      * @return
      */
     @GetMapping(value = "/my_app/chat/sse/two", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ServerSentEvent<String>> doChatWithMyAppSSETwo(String message, String chatId) {
-        return myApp.doChatByStream(message, chatId, ModelEnum.QWEN)
+    public Flux<ServerSentEvent<String>> doChatWithMyAppSSETwo(String message, String chatId,
+                                                               @RequestParam(required = false) String modelName) {
+        return myApp.doChatByStream(message, chatId, ModelEnum.QWEN, modelName)
                 .map(chunk -> ServerSentEvent.<String>builder()
                         .data(chunk)
                         .build());
@@ -90,11 +99,12 @@ public class AiController {
      * @return
      */
     @GetMapping("/my_app/chat/sse/emitter")
-    public SseEmitter doChatWithMyAppSseEmitter(String message, String chatId) {
+    public SseEmitter doChatWithMyAppSseEmitter(String message, String chatId,
+                                                @RequestParam(required = false) String modelName) {
         // 创建一个超时时间较长的 SseEmitter
         SseEmitter emitter = new SseEmitter(180000L); // 3分钟超时
         // 获取 Flux 数据流并直接订阅
-        myApp.doChatByStream(message, chatId, ModelEnum.QWEN)
+        myApp.doChatByStream(message, chatId, ModelEnum.QWEN, modelName)
                 .subscribe(
                         // 处理每条消息
                         chunk -> {
@@ -121,16 +131,51 @@ public class AiController {
      */
     @GetMapping("/manus/chat")
     public SseEmitter doChatWithManus(String message, String chatId,
-                                      @RequestParam(defaultValue = "qwen") String model) {
+                                      @RequestParam(defaultValue = "qwen") String model,
+                                      @RequestParam(required = false) String modelName) {
         ModelEnum modelEnum = ModelEnum.fromCode(model);
-        log.info("[Agent] 使用模型: code={}, provider={}, modelName={}",
-                modelEnum.getCode(), modelEnum.getProvider(), modelRouter.getModelName(modelEnum));
         UserContext.registerConversationUser(chatId);
         Long userId = UserContext.getUserId();
+        // 按用户自定义配置获取模型；未配置时返回 error 事件提示去配置
+        ChatModel chatModel;
+        try {
+            chatModel = userChatModelManager.getChatModel(userId, modelEnum, modelName);
+        } catch (LlmNotConfiguredException e) {
+            log.warn("用户未配置 LLM: userId={}, model={}", userId, modelEnum.getCode());
+            return buildErrorEmitter(e.getMessage());
+        }
+        log.info("[Agent] 使用模型: code={}, provider={}, modelName={}",
+                modelEnum.getCode(), modelEnum.getProvider(), modelName);
         ToolCallback[] mcpTools = userMcpToolManager.getToolsForUser(userId);
-        MyAgent myAgent = MyAgent.create(allTools, mcpTools, modelRouter,
-                modelEnum, vectorStore, redisTemplate, promptProperties);
+        ToolCallback[] mergedTools = mergeToolCallbacks(allTools, mcpTools);
+        ChatOptions chatOptions = modelRouter.createChatOptions(modelEnum, mergedTools);
+        MyAgent myAgent = MyAgent.create(mergedTools, chatModel, chatOptions,
+                vectorStore, redisTemplate, promptProperties);
         return myAgent.runStream(message, chatId);
+    }
+
+    /** 合并系统工具与用户 MCP 工具 */
+    private static ToolCallback[] mergeToolCallbacks(ToolCallback[] tools1, ToolCallback[] tools2) {
+        ToolCallback[] merged = new ToolCallback[tools1.length + tools2.length];
+        System.arraycopy(tools1, 0, merged, 0, tools1.length);
+        System.arraycopy(tools2, 0, merged, tools1.length, tools2.length);
+        return merged;
+    }
+
+    /** 构造只发一个 error 事件的 SseEmitter（用户未配置 LLM 时提示） */
+    private static SseEmitter buildErrorEmitter(String message) {
+        SseEmitter emitter = new SseEmitter(30000L);
+        try {
+            emitter.send(AgentStepEvent.builder()
+                    .type("error")
+                    .step(0)
+                    .content(message)
+                    .build()
+                    .toSseData());
+        } catch (IOException ignored) {
+        }
+        emitter.complete();
+        return emitter;
     }
 
 

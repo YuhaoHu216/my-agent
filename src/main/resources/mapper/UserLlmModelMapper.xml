@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="space.huyuhao.myagent.mapper.UserLlmModelMapper">
+
+    <select id="selectByUserId" resultType="space.huyuhao.myagent.entity.UserLlmModel">
+        SELECT * FROM user_llm_model WHERE user_id = #{userId} ORDER BY create_time DESC
+    </select>
+
+    <select id="selectByUserIdAndProvider" resultType="space.huyuhao.myagent.entity.UserLlmModel">
+        SELECT * FROM user_llm_model WHERE user_id = #{userId} AND provider = #{provider} ORDER BY create_time DESC
+    </select>
+
+    <delete id="deleteByUserIdAndProvider">
+        DELETE FROM user_llm_model WHERE user_id = #{userId} AND provider = #{provider}
+    </delete>
+
+</mapper>

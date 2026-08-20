@@ -9,8 +9,6 @@ import org.springframework.data.redis.core.RedisTemplate;
 import space.huyuhao.myagent.advisor.MyLoggerAdvisor;
 import space.huyuhao.myagent.chatmemory.RedisChatMemory;
 import space.huyuhao.myagent.config.PromptProperties;
-import space.huyuhao.myagent.model.ModelEnum;
-import space.huyuhao.myagent.model.ModelRouter;
 
 public class MyAgent extends ToolCallAgent {
 
@@ -38,26 +36,17 @@ public class MyAgent extends ToolCallAgent {
     }
 
     /**
-     * 根据模型路由创建实例：合并工具、解析 provider 专属 ChatModel 与 ChatOptions。
+     * 创建实例：工具已在调用方合并，接收已解析的 provider 专属 ChatModel 与 ChatOptions。
      */
-    public static MyAgent create(ToolCallback[] allTools,
-                                 ToolCallback[] mcpTools,
-                                 ModelRouter modelRouter,
-                                 ModelEnum model,
+    public static MyAgent create(ToolCallback[] mergedTools,
+                                 ChatModel chatModel,
+                                 ChatOptions chatOptions,
                                  VectorStore vectorStore,
                                  RedisTemplate<String, byte[]> redisTemplate,
                                  PromptProperties promptProperties) {
-        ToolCallback[] mergedTools = mergeToolCallbacks(allTools, mcpTools);
         return new MyAgent(mergedTools,
-                modelRouter.getChatModel(model),
-                modelRouter.createChatOptions(model, mergedTools),
+                chatModel,
+                chatOptions,
                 vectorStore, redisTemplate, promptProperties);
-    }
-
-    private static ToolCallback[] mergeToolCallbacks(ToolCallback[] tools1, ToolCallback[] tools2) {
-        ToolCallback[] merged = new ToolCallback[tools1.length + tools2.length];
-        System.arraycopy(tools1, 0, merged, 0, tools1.length);
-        System.arraycopy(tools2, 0, merged, tools1.length, tools2.length);
-        return merged;
     }
 }
