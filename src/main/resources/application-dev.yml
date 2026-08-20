@@ -20,12 +20,6 @@ spring:
           max-active: 8
           max-idle: 8
           min-idle: 0
-  ai:
-    mcp:
-      client:
-        stdio:
-          servers-configuration: classpath:mcp-servers.json   # Windows 用 npx.cmd
-
 milvus:
   host: localhost
   port: 19530

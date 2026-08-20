@@ -3,7 +3,6 @@ package space.huyuhao.myagent.controller;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.MediaType;
@@ -18,6 +17,7 @@ import space.huyuhao.myagent.agent.MyAgent;
 import space.huyuhao.myagent.app.MyApp;
 import space.huyuhao.myagent.config.PromptProperties;
 import space.huyuhao.myagent.context.UserContext;
+import space.huyuhao.myagent.mcp.UserMcpToolManager;
 import space.huyuhao.myagent.model.ModelEnum;
 import space.huyuhao.myagent.model.ModelRouter;
 
@@ -38,7 +38,7 @@ public class AiController {
     private ModelRouter modelRouter;
 
     @Resource
-    private ToolCallbackProvider toolCallbackProvider;
+    private UserMcpToolManager userMcpToolManager;
 
     @Resource
     private VectorStore vectorStore;
@@ -126,7 +126,9 @@ public class AiController {
         log.info("[Agent] 使用模型: code={}, provider={}, modelName={}",
                 modelEnum.getCode(), modelEnum.getProvider(), modelRouter.getModelName(modelEnum));
         UserContext.registerConversationUser(chatId);
-        MyAgent myAgent = MyAgent.create(allTools, toolCallbackProvider, modelRouter,
+        Long userId = UserContext.getUserId();
+        ToolCallback[] mcpTools = userMcpToolManager.getToolsForUser(userId);
+        MyAgent myAgent = MyAgent.create(allTools, mcpTools, modelRouter,
                 modelEnum, vectorStore, redisTemplate, promptProperties);
         return myAgent.runStream(message, chatId);
     }

@@ -15,26 +15,22 @@ spring:
       chat:
         options:
           timeout: 180000
+          model: ${QWEN_MODEL:deepseek-v4-pro-0813}
     deepseek:
       api-key: ${DEEPSEEK_API_KEY}
       base-url: https://api.deepseek.com
       chat:
         options:
           model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
-    mcp:
-      client:
-        enabled: true
-        request-timeout: 120000
-      retry:
-        max-attempts: 3
-        backoff:
-          initial-interval: 2000
-          multiplier: 2
-          max-interval: 10000
   servlet:
     multipart:
       max-file-size: 50MB
       max-request-size: 100MB
+
+# 用户自定义 MCP 配置
+my-agent:
+  mcp:
+    request-timeout-ms: 30000
 
 file:
   upload:

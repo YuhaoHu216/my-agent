@@ -4,7 +4,6 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.data.redis.core.RedisTemplate;
 import space.huyuhao.myagent.advisor.MyLoggerAdvisor;
@@ -42,14 +41,13 @@ public class MyAgent extends ToolCallAgent {
      * 根据模型路由创建实例：合并工具、解析 provider 专属 ChatModel 与 ChatOptions。
      */
     public static MyAgent create(ToolCallback[] allTools,
-                                 ToolCallbackProvider toolCallbackProvider,
+                                 ToolCallback[] mcpTools,
                                  ModelRouter modelRouter,
                                  ModelEnum model,
                                  VectorStore vectorStore,
                                  RedisTemplate<String, byte[]> redisTemplate,
                                  PromptProperties promptProperties) {
-        ToolCallback[] mergedTools = mergeToolCallbacks(allTools,
-                (ToolCallback[]) toolCallbackProvider.getToolCallbacks());
+        ToolCallback[] mergedTools = mergeToolCallbacks(allTools, mcpTools);
         return new MyAgent(mergedTools,
                 modelRouter.getChatModel(model),
                 modelRouter.createChatOptions(model, mergedTools),
