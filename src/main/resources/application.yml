@@ -6,7 +6,7 @@ spring:
   config:
     import: prompt.yml
   profiles:
-    active: dev           # 默认激活开发环境
+    active: prod           # 默认激活开发环境
   application:
     name: my-agent
   ai:

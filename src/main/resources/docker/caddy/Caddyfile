@@ -1,0 +1,3 @@
+agent.huyuhao.top {
+	reverse_proxy agent-web:5173
+}
