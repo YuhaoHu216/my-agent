@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import space.huyuhao.myagent.config.DocumentProperties;
 import space.huyuhao.myagent.context.UserContext;
 import space.huyuhao.myagent.dto.*;
 import space.huyuhao.myagent.entity.UserDocument;
@@ -40,10 +41,9 @@ import java.util.stream.Collectors;
 public class UserDocumentServiceImpl implements UserDocumentService {
 
     private static final Logger logger = LoggerFactory.getLogger(UserDocumentServiceImpl.class);
-    /** 需要分块+向量化的格式 */
-    private static final Set<String> VECTORIZABLE_EXTENSIONS = Set.of(".md");
-    /** 仅存储到磁盘、不走向量数据库的格式 */
-    private static final Set<String> STORABLE_EXTENSIONS = Set.of(".txt",".docx",".doc",".pdf",".vsdx");
+
+    @Autowired
+    private DocumentProperties documentProperties;
 
     @Autowired
     private UserDocumentMapper userDocumentMapper;
@@ -60,6 +60,10 @@ public class UserDocumentServiceImpl implements UserDocumentService {
     @Value("${file.upload.path}")
     private String uploadPath;
 
+    /** 向量嵌入模型名（用于「存入向量数据库的文档信息」展示） */
+    @Value("${dashscope.embedding.model}")
+    private String vectorModel;
+
     @PostConstruct
     public void init() {
         this.uploadPath = Paths.get(uploadPath).toAbsolutePath().normalize().toString();
@@ -73,18 +77,13 @@ public class UserDocumentServiceImpl implements UserDocumentService {
             return ResponseResult.error("文件名不能为空");
         }
 
-        // 校验扩展名
+        // 扩展名不限类型：规定格式（.md/.txt）向量化分片入知识库，其余仅存储到磁盘作为中转文件
         String extension = "";
         int dotIndex = originalName.lastIndexOf('.');
-        if (dotIndex <= 0) {
-            return ResponseResult.error("不支持的文件类型，仅支持 .txt 和 .md");
+        if (dotIndex > 0) {
+            extension = originalName.substring(dotIndex).toLowerCase();
         }
-        extension = originalName.substring(dotIndex).toLowerCase();
-        boolean isVectorizable = VECTORIZABLE_EXTENSIONS.contains(extension);
-        boolean isStorable = STORABLE_EXTENSIONS.contains(extension);
-        if (!isVectorizable && !isStorable) {
-            return ResponseResult.error("不支持的文件类型，仅支持 .txt 和 .md");
-        }
+        boolean isVectorizable = documentProperties.vectorizableExtensionSet().contains(extension);
 
         if (file.isEmpty()) {
             return ResponseResult.error("文件不能为空");
@@ -160,16 +159,39 @@ public class UserDocumentServiceImpl implements UserDocumentService {
         List<UserDocument> docs = userDocumentMapper.selectByUserId(userId);
 
         List<DocumentInfoDto> result = docs.stream().map(doc -> {
+            boolean vectorized = doc.getChunkCount() != null && doc.getChunkCount() > 0;
             DocumentInfoDto dto = new DocumentInfoDto();
             dto.setId(doc.getId());
             dto.setFileName(doc.getFileName());
             dto.setFileSize(doc.getFileSize());
             dto.setFileExtension(doc.getFileExtension());
             dto.setChunkCount(doc.getChunkCount());
+            dto.setVectorized(vectorized);
+            dto.setVectorModel(vectorized ? vectorModel : null);
             dto.setCreateTime(doc.getCreateTime());
             return dto;
         }).collect(Collectors.toList());
 
+        return ResponseResult.success(result);
+    }
+
+    @Override
+    public ResponseResult<List<DocumentChunkInfoDto>> chunks(Long documentId) {
+        Long userId = UserContext.getUserId();
+        // 归属校验：只能查看自己的文档
+        UserDocument doc = userDocumentMapper.selectByUserIdAndId(userId, documentId);
+        if (doc == null) {
+            return ResponseResult.error(404, "文档不存在或无权操作");
+        }
+
+        List<DocumentChunkInfoDto> result;
+        if (vectorStore instanceof SimpleVectorStore || vectorStore instanceof LoggingSimpleVectorStore) {
+            result = listChunksFromSimpleVectorStore(doc);
+        } else {
+            result = queryChunksFromVectorStore(userId, doc);
+        }
+        // 按分片序号排序，保证阅读顺序
+        result.sort(Comparator.comparingInt(d -> d.getChunkIndex() == null ? Integer.MAX_VALUE : d.getChunkIndex()));
         return ResponseResult.success(result);
     }
 
@@ -403,5 +425,90 @@ public class UserDocumentServiceImpl implements UserDocumentService {
             return wrapper.getDelegate();
         }
         throw new IllegalStateException("当前 VectorStore 不是 SimpleVectorStore 类型: " + vectorStore.getClass().getName());
+    }
+
+    /**
+     * SimpleVectorStore（内存库）不支持按过滤条件查询，反射遍历内部 store 收集某文档的全部分片。
+     */
+    private List<DocumentChunkInfoDto> listChunksFromSimpleVectorStore(UserDocument doc) {
+        List<DocumentChunkInfoDto> result = new ArrayList<>();
+        try {
+            SimpleVectorStore svs = getSimpleVectorStore();
+            var field = SimpleVectorStore.class.getDeclaredField("store");
+            field.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            Map<String, ?> store = (Map<String, ?>) field.get(svs);
+
+            String source = doc.getFilePath();
+            Long userId = doc.getUserId();
+            for (var entry : store.entrySet()) {
+                try {
+                    var content = entry.getValue();
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> metadata = (Map<String, Object>) content.getClass()
+                            .getMethod("getMetadata").invoke(content);
+                    Object metaUserId = metadata.get("userId");
+                    Object metaSource = metadata.get("_source");
+                    if (metaUserId == null || metaSource == null
+                            || !String.valueOf(metaUserId).equals(String.valueOf(userId))
+                            || !String.valueOf(metaSource).equals(source)) {
+                        continue;
+                    }
+                    String text = (String) content.getClass().getMethod("getText").invoke(content);
+                    String chunkId = (String) content.getClass().getMethod("getId").invoke(content);
+                    result.add(toChunkInfoDto(chunkId, text, metadata));
+                } catch (Exception ignored) {
+                    // 跳过无法解析的条目
+                }
+            }
+        } catch (Exception e) {
+            logger.error("SimpleVectorStore 读取文档分片失败: docId={}", doc.getId(), e);
+            throw new RuntimeException("读取文档分片失败", e);
+        }
+        return result;
+    }
+
+    /**
+     * 支持 Filter 的向量库（Milvus 等）：过滤条件已将结果限定为该文档的全部分片，
+     * 用足够大的 topK 全量取回后由调用方按 chunkIndex 排序。Milvus 当前为备用存储，未启用。
+     */
+    private List<DocumentChunkInfoDto> queryChunksFromVectorStore(Long userId, UserDocument doc) {
+        Filter.Expression filter = new Filter.Expression(
+                Filter.ExpressionType.AND,
+                new Filter.Expression(Filter.ExpressionType.EQ,
+                        new Filter.Key("userId"), new Filter.Value(userId)),
+                new Filter.Expression(Filter.ExpressionType.EQ,
+                        new Filter.Key("_source"), new Filter.Value(doc.getFilePath()))
+        );
+        List<Document> docs = vectorStore.similaritySearch(SearchRequest.builder()
+                .query(doc.getFileName())
+                .topK(10000)
+                .filterExpression(filter)
+                .build());
+        List<DocumentChunkInfoDto> result = new ArrayList<>();
+        for (Document d : docs) {
+            result.add(toChunkInfoDto(d.getId(), d.getText(), d.getMetadata()));
+        }
+        return result;
+    }
+
+    /** 从向量库记录（文本 + metadata）构造分片详情 DTO */
+    private DocumentChunkInfoDto toChunkInfoDto(String chunkId, String text, Map<String, Object> metadata) {
+        DocumentChunkInfoDto dto = new DocumentChunkInfoDto();
+        dto.setChunkId(chunkId);
+        dto.setContent(text);
+        Object chunkIndex = metadata.get("chunkIndex");
+        if (chunkIndex instanceof Number) {
+            dto.setChunkIndex(((Number) chunkIndex).intValue());
+        }
+        Object totalChunks = metadata.get("totalChunks");
+        if (totalChunks instanceof Number) {
+            dto.setTotalChunks(((Number) totalChunks).intValue());
+        }
+        Object title = metadata.get("title");
+        if (title != null) {
+            dto.setTitle(String.valueOf(title));
+        }
+        return dto;
     }
 }

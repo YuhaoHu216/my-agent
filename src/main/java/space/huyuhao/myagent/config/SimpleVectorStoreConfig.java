@@ -28,18 +28,16 @@ public class SimpleVectorStoreConfig {
 
     private static final Logger log = LoggerFactory.getLogger(SimpleVectorStoreConfig.class);
 
-    /** 支持向量化的文件扩展名 */
-    private static final Set<String> VECTORIZABLE_EXTENSIONS = Set.of(".md", ".txt");
-
     @Value("${file.upload.path}")
     private String uploadPath;
 
     @Bean
-    VectorStore vectorStore(EmbeddingModel dashscopeEmbeddingModel, DocumentChunkService chunkService) {
+    VectorStore vectorStore(EmbeddingModel dashscopeEmbeddingModel, DocumentChunkService chunkService,
+                            DocumentProperties documentProperties) {
         SimpleVectorStore simpleVectorStore = SimpleVectorStore.builder(dashscopeEmbeddingModel)
                 .build();
-        // 从 uploads 目录加载用户已上传的文档（保持与上传服务一致的 metadata 结构）
-        List<Document> documents = loadUploadedDocuments(chunkService);
+        // 从 uploads 目录加载用户已上传的规定格式文档（与上传链路共用同一扩展名集合，保持 metadata 一致）
+        List<Document> documents = loadUploadedDocuments(chunkService, documentProperties.vectorizableExtensionSet());
         if (!documents.isEmpty()) {
             simpleVectorStore.add(documents);
             log.info("SimpleVectorStore: 从 uploads 目录加载了 {} 个文档分片", documents.size());
@@ -53,7 +51,7 @@ public class SimpleVectorStoreConfig {
      * 目录结构：uploads/{userId}/{uuid}_{originalFileName}.md
      * metadata 结构与 UserDocumentServiceImpl.addChunksToVectorStore 保持一致。
      */
-    private List<Document> loadUploadedDocuments(DocumentChunkService chunkService) {
+    private List<Document> loadUploadedDocuments(DocumentChunkService chunkService, Set<String> vectorizableExtensions) {
         List<Document> allDocuments = new ArrayList<>();
         Path uploadDir = Paths.get(uploadPath).toAbsolutePath().normalize();
 
@@ -77,7 +75,7 @@ public class SimpleVectorStoreConfig {
                 // 遍历用户目录下可向量化的文件
                 try (DirectoryStream<Path> files = Files.newDirectoryStream(userDir, entry -> {
                     String name = entry.getFileName().toString().toLowerCase();
-                    return VECTORIZABLE_EXTENSIONS.stream().anyMatch(name::endsWith);
+                    return vectorizableExtensions.stream().anyMatch(name::endsWith);
                 })) {
                     for (Path file : files) {
                         try {

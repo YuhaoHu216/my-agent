@@ -31,6 +31,9 @@ spring:
 my-agent:
   mcp:
     request-timeout-ms: 30000
+  document:
+    # 规定格式（不带点、小写）：上传时向量化分片入知识库；其余扩展名文件仅存储（文件中转站）
+    vectorizable-extensions: md,txt
 
 file:
   upload:

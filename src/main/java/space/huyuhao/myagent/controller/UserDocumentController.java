@@ -30,6 +30,12 @@ public class UserDocumentController {
         return userDocumentService.list();
     }
 
+    @GetMapping("/{id}/chunks")
+    @Operation(summary = "获取文档的分片详情")
+    public ResponseResult<List<DocumentChunkInfoDto>> chunks(@PathVariable Long id) {
+        return userDocumentService.chunks(id);
+    }
+
     @PostMapping("/search")
     @Operation(summary = "搜索我的文档")
     public ResponseResult<List<DocumentSearchResultDto>> search(@Valid @RequestBody DocumentSearchRequestDto request) {

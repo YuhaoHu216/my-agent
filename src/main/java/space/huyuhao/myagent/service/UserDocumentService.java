@@ -12,6 +12,8 @@ public interface UserDocumentService {
 
     ResponseResult<List<DocumentInfoDto>> list();
 
+    ResponseResult<List<DocumentChunkInfoDto>> chunks(Long documentId);
+
     ResponseResult<List<DocumentSearchResultDto>> search(DocumentSearchRequestDto request);
 
     ResponseResult<String> delete(Long documentId);
