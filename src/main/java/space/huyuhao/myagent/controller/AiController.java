@@ -150,7 +150,7 @@ public class AiController {
         ToolCallback[] mergedTools = mergeToolCallbacks(allTools, mcpTools);
         ChatOptions chatOptions = modelRouter.createChatOptions(modelEnum, mergedTools);
         MyAgent myAgent = MyAgent.create(mergedTools, chatModel, chatOptions,
-                vectorStore, redisTemplate, promptProperties);
+                userId, vectorStore, redisTemplate, promptProperties);
         return myAgent.runStream(message, chatId);
     }
 

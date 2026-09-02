@@ -17,7 +17,9 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.model.function.FunctionCallback;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import space.huyuhao.myagent.advisor.MyLoggerAdvisor;
@@ -86,6 +88,23 @@ public class MyApp {
                 .build();
     }
 
+    /**
+     * 构造按当前用户过滤的 RAG 检索条件（多租户隔离）。
+     * 同步请求线程可读 ThreadLocal；异步/流式线程回退按 conversationId 从 conversationUserMap 反查；
+     * 仍取不到用户时用 -1 封死过滤条件，避免跨用户全库检索。
+     */
+    private SearchRequest userScopedRagSearch(String chatId) {
+        Long uid = UserContext.getUserId();
+        if (uid == null) {
+            uid = UserContext.getUserIdByConversationId(chatId);
+        }
+        Long filterUserId = uid == null ? -1L : uid;
+        return SearchRequest.builder().topK(4)
+                .filterExpression(new Filter.Expression(
+                        Filter.ExpressionType.EQ, new Filter.Key("userId"), new Filter.Value(filterUserId)))
+                .build();
+    }
+
     // 阻塞返回的调用
     public String doChat(String message, String chatId) {
         ChatResponse response = chatClients.get(ModelEnum.QWEN)
@@ -93,7 +112,7 @@ public class MyApp {
                 .user(message)
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
                         .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
-                .advisors(new QuestionAnswerAdvisor(vectorStore))
+                .advisors(new QuestionAnswerAdvisor(vectorStore, userScopedRagSearch(chatId)))
                 .call()
                 .chatResponse();
         String content = response.getResult().getOutput().getText();
@@ -112,7 +131,7 @@ public class MyApp {
                 .user(message)
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
                         .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
-                .advisors(new QuestionAnswerAdvisor(vectorStore))
+                .advisors(new QuestionAnswerAdvisor(vectorStore, userScopedRagSearch(chatId)))
                 .call()
                 .entity(MyReport.class);
         log.info("myReport: {}", myReport);
@@ -143,7 +162,7 @@ public class MyApp {
                 .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
                         .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
                 .tools(mergeToolCallbacks(allTools, mcpToolsBlocking))
-                .advisors(new QuestionAnswerAdvisor(vectorStore))
+                .advisors(new QuestionAnswerAdvisor(vectorStore, userScopedRagSearch(chatId)))
                 .stream()
                 .content();
     }

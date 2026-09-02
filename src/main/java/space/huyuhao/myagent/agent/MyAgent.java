@@ -15,11 +15,13 @@ public class MyAgent extends ToolCallAgent {
     private MyAgent(ToolCallback[] mergedTools,
                     ChatModel chatModel,
                     ChatOptions chatOptions,
+                    Long userId,
                     VectorStore vectorStore,
                     RedisTemplate<String, byte[]> redisTemplate,
                     PromptProperties promptProperties) {
         super(mergedTools, chatOptions);
         this.setName("myManus");
+        this.setUserId(userId);
         this.setVectorStore(vectorStore);
         this.setChatMemory(new RedisChatMemory(redisTemplate));
         this.setSystemPrompt(promptProperties.getAgent().getSystem());
@@ -41,12 +43,13 @@ public class MyAgent extends ToolCallAgent {
     public static MyAgent create(ToolCallback[] mergedTools,
                                  ChatModel chatModel,
                                  ChatOptions chatOptions,
+                                 Long userId,
                                  VectorStore vectorStore,
                                  RedisTemplate<String, byte[]> redisTemplate,
                                  PromptProperties promptProperties) {
         return new MyAgent(mergedTools,
                 chatModel,
                 chatOptions,
-                vectorStore, redisTemplate, promptProperties);
+                userId, vectorStore, redisTemplate, promptProperties);
     }
 }

@@ -9,8 +9,10 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import space.huyuhao.myagent.chatmemory.RedisChatMemory;
+import space.huyuhao.myagent.context.UserContext;
 
 
 import java.util.ArrayList;
@@ -65,6 +67,9 @@ public abstract class BaseAgent {
 
     // RAG 向量存储（可选），volatile 确保异步线程可见
     private volatile VectorStore vectorStore;
+
+    // RAG 检索归属用户（多租户隔离），异步线程中优先显式值，其次按 conversationId 兜底解析
+    private volatile Long userId;
 
     public void setVectorStore(VectorStore vectorStore) {
         this.vectorStore = vectorStore;
@@ -415,10 +420,21 @@ public abstract class BaseAgent {
             log.warn("RAG 跳过：vectorStore 未注入");
             return;
         }
+        // 多租户隔离：只检索当前用户自己的资料。userId 优先取显式注入值，
+        // 异步线程中 ThreadLocal 不可靠，回退按 conversationId 从 conversationUserMap 反查。
+        // fail-closed：仍解析不到用户时用 -1 封死过滤条件，杜绝跨用户全库检索。
+        Long uid = this.userId;
+        if (uid == null && this.conversationId != null) {
+            uid = UserContext.getUserIdByConversationId(this.conversationId);
+        }
+        Long filterUserId = uid == null ? -1L : uid;
+        Filter.Expression userFilter = new Filter.Expression(
+                Filter.ExpressionType.EQ, new Filter.Key("userId"), new Filter.Value(filterUserId));
         try {
-            log.info("RAG 开始检索: query=\"{}\", vectorStoreType={}", userPrompt, vectorStore.getClass().getSimpleName());
+            log.info("RAG 开始检索: query=\"{}\", userId={}, vectorStoreType={}",
+                    userPrompt, filterUserId, vectorStore.getClass().getSimpleName());
             List<Document> docs = vectorStore.similaritySearch(
-                    SearchRequest.builder().query(userPrompt).topK(4).build()
+                    SearchRequest.builder().query(userPrompt).topK(4).filterExpression(userFilter).build()
             );
             if (docs != null && !docs.isEmpty()) {
                 // 打印检索到的文档信息，方便排查
