@@ -69,10 +69,15 @@ public class JwtUtil {
     }
 
     public boolean validateToken(String token) {
+        if (token == null || token.isEmpty()) {
+            return false;
+        }
         try {
             Claims claims = getClaimsFromToken(token);
             return !claims.getExpiration().before(new Date());
-        } catch (JwtException e) {
+        } catch (Exception e) {
+            // getClaimsFromToken 会把 JwtException(过期、签名不符等)包装成 RuntimeException 抛出，
+            // 这里必须按 Exception 捕获，否则 token 失效会从拦截器冒泡成 500 而非 401
             return false;
         }
     }
