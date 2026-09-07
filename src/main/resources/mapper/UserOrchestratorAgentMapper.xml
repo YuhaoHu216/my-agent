@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="space.huyuhao.myagent.mapper.UserOrchestratorAgentMapper">
+
+    <delete id="deleteByUserIdAndOrchestratorId">
+        DELETE FROM user_orchestrator_agent WHERE user_id = #{userId} AND orchestrator_id = #{orchestratorId}
+    </delete>
+
+    <select id="selectAgentsByOrchestratorId" resultType="space.huyuhao.myagent.entity.UserAgent">
+        SELECT a.id AS id, a.user_id AS userId, a.agent_name AS agentName, a.system_prompt AS systemPrompt,
+               a.next_step_prompt AS nextStepPrompt, a.provider AS provider, a.model_name AS modelName,
+               a.enabled AS enabled, a.create_time AS createTime, a.update_time AS updateTime
+        FROM user_orchestrator_agent b
+        JOIN user_agent a ON a.id = b.agent_id
+        WHERE b.user_id = #{userId} AND b.orchestrator_id = #{orchestratorId} AND a.enabled = 1
+        ORDER BY b.id ASC
+    </select>
+
+</mapper>

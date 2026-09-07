@@ -40,4 +40,21 @@ public enum ModelEnum {
         }
         return QWEN;
     }
+
+    /**
+     * 根据库中存储的供应商字符串（如 DASHSCOPE/DEEPSEEK）解析枚举，未知值回退 QWEN（与 fromCode 行为一致）。
+     */
+    public static ModelEnum fromProvider(String provider) {
+        if (provider == null) {
+            return QWEN;
+        }
+        String p = provider.trim().toUpperCase();
+        if ("DASHSCOPE".equals(p) || "QWEN".equals(p)) {
+            return QWEN;
+        }
+        if ("DEEPSEEK".equals(p)) {
+            return DEEPSEEK;
+        }
+        return QWEN;
+    }
 }

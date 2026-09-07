@@ -23,8 +23,10 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -83,6 +85,36 @@ public class UserMcpToolManager {
             toolsCache.put(userId, tools);
             return tools;
         }
+    }
+
+    /**
+     * 只返回绑定到指定 MCP server 的工具（仍按该用户校验归属 + 启用状态，防越权）。
+     * 用于自定义 agent：仅注入其绑定的 server 工具，不复用全量 getToolsForUser。
+     * 单个服务失败仅跳过，不拖垮整体。
+     */
+    public ToolCallback[] getToolsForUserByServerIds(Long userId, List<Long> serverIds) {
+        if (userId == null || serverIds == null || serverIds.isEmpty()) {
+            return EMPTY_TOOLS;
+        }
+        Set<Long> serverIdSet = new HashSet<>(serverIds);
+        List<UserMcpServer> bound = userMcpServerMapper.selectEnabledByUserId(userId).stream()
+                .filter(server -> serverIdSet.contains(server.getId()))
+                .collect(Collectors.toList());
+        if (bound.isEmpty()) {
+            return EMPTY_TOOLS;
+        }
+        List<McpSyncClient> clients = new ArrayList<>();
+        for (UserMcpServer server : bound) {
+            McpSyncClient client = getOrCreateClient(userId, server);
+            if (client != null) {
+                clients.add(client);
+            }
+        }
+        if (clients.isEmpty()) {
+            return EMPTY_TOOLS;
+        }
+        return McpToolUtils.getToolCallbacksFromSyncClients(clients.toArray(new McpSyncClient[0]))
+                .toArray(ToolCallback[]::new);
     }
 
     /**
