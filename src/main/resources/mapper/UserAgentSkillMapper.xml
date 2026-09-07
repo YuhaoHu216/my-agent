@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="space.huyuhao.myagent.mapper.UserAgentSkillMapper">
+
+    <delete id="deleteByUserIdAndAgentId">
+        DELETE FROM user_agent_skill WHERE user_id = #{userId} AND agent_id = #{agentId}
+    </delete>
+
+    <select id="selectSkillsByAgentId" resultType="space.huyuhao.myagent.dto.UserSkillDto">
+        SELECT s.id AS id, s.skill_name AS skillName, s.skill_content AS skillContent,
+               s.enabled AS enabled, s.create_time AS createTime, s.update_time AS updateTime
+        FROM user_agent_skill b
+        JOIN user_skill s ON s.id = b.skill_id
+        WHERE b.user_id = #{userId} AND b.agent_id = #{agentId} AND s.enabled = 1
+        ORDER BY b.id DESC
+    </select>
+
+</mapper>

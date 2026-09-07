@@ -83,3 +83,95 @@ CREATE TABLE user_llm_model (
     UNIQUE KEY uk_user_provider_model (user_id, provider, model_name),
     INDEX idx_user_id (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户LLM模型配置表';
+
+-- 用户技能表（提示词知识包）
+DROP TABLE IF EXISTS user_skill;
+
+CREATE TABLE user_skill (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    user_id BIGINT NOT NULL COMMENT '用户ID',
+    skill_name VARCHAR(100) NOT NULL COMMENT '技能名称(同一用户内唯一)',
+    skill_content TEXT NOT NULL COMMENT '技能提示词内容(知识包)',
+    enabled TINYINT DEFAULT 1 COMMENT '是否启用: 0-禁用, 1-启用',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_user_skill_name (user_id, skill_name),
+    INDEX idx_user_id (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户技能表';
+
+-- 用户自定义 Agent 表
+DROP TABLE IF EXISTS user_agent;
+
+CREATE TABLE user_agent (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    user_id BIGINT NOT NULL COMMENT '用户ID',
+    agent_name VARCHAR(100) NOT NULL COMMENT 'Agent名称(同一用户内唯一)',
+    system_prompt TEXT NOT NULL COMMENT 'Agent系统提示词',
+    next_step_prompt TEXT DEFAULT NULL COMMENT '下一步提示词(可空，为空用内置兜底)',
+    provider VARCHAR(20) NOT NULL COMMENT '模型提供商: DASHSCOPE-通义千问, DEEPSEEK-DeepSeek',
+    model_name VARCHAR(100) NOT NULL COMMENT '模型名称',
+    enabled TINYINT DEFAULT 1 COMMENT '是否启用: 0-禁用, 1-启用',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_user_agent_name (user_id, agent_name),
+    INDEX idx_user_id (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户自定义Agent表';
+
+-- Agent 与 Skill 绑定表
+DROP TABLE IF EXISTS user_agent_skill;
+
+CREATE TABLE user_agent_skill (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    user_id BIGINT NOT NULL COMMENT '用户ID',
+    agent_id BIGINT NOT NULL COMMENT 'Agent ID',
+    skill_id BIGINT NOT NULL COMMENT 'Skill ID',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    UNIQUE KEY uk_user_agent_skill (user_id, agent_id, skill_id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_agent_id (agent_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Agent-Skill绑定表';
+
+-- Agent 与 MCP Server 绑定表
+DROP TABLE IF EXISTS user_agent_mcp;
+
+CREATE TABLE user_agent_mcp (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    user_id BIGINT NOT NULL COMMENT '用户ID',
+    agent_id BIGINT NOT NULL COMMENT 'Agent ID',
+    mcp_server_id BIGINT NOT NULL COMMENT 'MCP Server ID(对应user_mcp_server.id)',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    UNIQUE KEY uk_user_agent_mcp (user_id, agent_id, mcp_server_id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_agent_id (agent_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Agent-MCP绑定表';
+
+-- 用户编排器表（主 agent）
+DROP TABLE IF EXISTS user_orchestrator;
+
+CREATE TABLE user_orchestrator (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    user_id BIGINT NOT NULL COMMENT '用户ID',
+    orchestrator_name VARCHAR(100) NOT NULL COMMENT '编排器名称(同一用户内唯一)',
+    system_prompt TEXT NOT NULL COMMENT '编排器系统提示词',
+    provider VARCHAR(20) NOT NULL COMMENT '模型提供商: DASHSCOPE-通义千问, DEEPSEEK-DeepSeek',
+    model_name VARCHAR(100) NOT NULL COMMENT '模型名称',
+    enabled TINYINT DEFAULT 1 COMMENT '是否启用: 0-禁用, 1-启用',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_user_orchestrator_name (user_id, orchestrator_name),
+    INDEX idx_user_id (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户编排器表';
+
+-- 编排器与子 Agent 关联表
+DROP TABLE IF EXISTS user_orchestrator_agent;
+
+CREATE TABLE user_orchestrator_agent (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    user_id BIGINT NOT NULL COMMENT '用户ID',
+    orchestrator_id BIGINT NOT NULL COMMENT '编排器ID',
+    agent_id BIGINT NOT NULL COMMENT '子Agent ID',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    UNIQUE KEY uk_user_orch_agent (user_id, orchestrator_id, agent_id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_orchestrator_id (orchestrator_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='编排器-子Agent关联表';

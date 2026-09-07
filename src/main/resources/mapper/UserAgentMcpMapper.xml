@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="space.huyuhao.myagent.mapper.UserAgentMcpMapper">
+
+    <delete id="deleteByUserIdAndAgentId">
+        DELETE FROM user_agent_mcp WHERE user_id = #{userId} AND agent_id = #{agentId}
+    </delete>
+
+    <select id="selectMcpsByAgentId" resultType="space.huyuhao.myagent.dto.UserMcpServerDto">
+        SELECT m.id AS id, m.server_name AS serverName, m.url AS url,
+               m.enabled AS enabled, m.connect_status AS connectStatus,
+               m.create_time AS createTime, m.update_time AS updateTime
+        FROM user_agent_mcp b
+        JOIN user_mcp_server m ON m.id = b.mcp_server_id
+        WHERE b.user_id = #{userId} AND b.agent_id = #{agentId} AND m.enabled = 1
+        ORDER BY b.id DESC
+    </select>
+
+</mapper>
